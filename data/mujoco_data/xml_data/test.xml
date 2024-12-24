@@ -1,0 +1,26 @@
+<mujoco model="stl_model_demo">
+    <asset>
+        <!-- 引入 STL 模型 -->
+        <mesh name="my_object" file="/home/haowen/hw_sim_real/depth_to_mujoco/processed_plane_geometry.obj" />
+    </asset>
+
+    <worldbody>
+        <!-- 定义一个包含 STL 模型的物体 -->
+        <body name="stl_body" pos="-0.05195228  0.09869324  0.5238725" quat="0.64256262  0.44966302 -0.37158421  0.49683159">
+            <geom type="mesh" mesh="my_object" rgba="0.8 0.8 0.8 1" />
+        </body>
+
+        <!-- 添加地面 -->
+        <!-- <geom name="floor" pos="0 0 -0.125" size="7 7 0.125" type="plane" rgba="0.5 0.5 0.5 1" /> -->
+
+        <!-- 添加相机 -->
+        <body name="camera_body" pos="0 0 0" euler="0 0 0">
+            <camera name="main_camera" pos="0 0 0" xyaxes="1 0 0 0 1 0" />
+        </body>
+    </worldbody>
+
+    <visual>
+        <!-- 设置相机的世界坐标系 -->
+        <map znear="0.01" zfar="50" />
+    </visual>
+</mujoco>

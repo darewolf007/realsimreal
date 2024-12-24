@@ -1,0 +1,13 @@
+<?xml version="1.0" ?>
+<robot name="example_robot">
+    <!-- 定义物体 -->
+    <link name="base_link">
+        <visual>
+            <geometry>
+                <mesh filename="/home/haowen/hw_sim_real/depth_to_mujoco/data/002/textured.obj" scale="1 1 1"/>
+            </geometry>
+            <origin xyz="-0.05195228  0.09869324  0.5238725" quat="0.64256262  0.44966302 -0.37158421  0.49683159"/>
+        </visual>
+
+    </link>
+</robot>
