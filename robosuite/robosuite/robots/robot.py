@@ -165,10 +165,10 @@ class Robot(object):
         self.robot_model = create_robot(self.name, idn=self.idn)
 
         # Add base if specified
-        if self.base_type == "default":
-            self.robot_model.add_base(base=robot_base_factory(self.robot_model.default_base, idn=self.idn))
-        else:
-            self.robot_model.add_base(base=robot_base_factory(self.base_type, idn=self.idn))
+        # if self.base_type == "default":
+        #     self.robot_model.add_base(base=robot_base_factory(self.robot_model.default_base, idn=self.idn))
+        # else:
+        #     self.robot_model.add_base(base=robot_base_factory(self.base_type, idn=self.idn))
 
         self.robot_model.update_joints()
         self.robot_model.update_actuators()

@@ -23,7 +23,7 @@ class UR5e(ManipulatorModel):
 
     @property
     def default_gripper(self):
-        return {"right": "Robotiq85Gripper"}
+        return {"right": "Robotiq140Gripper"}
 
     @property
     def default_controller_config(self):
@@ -31,19 +31,19 @@ class UR5e(ManipulatorModel):
 
     @property
     def init_qpos(self):
-        return np.array([-0.470, -1.735, 2.480, -2.275, -1.590, -1.991])
+        return np.array(np.array([-1.169, -1.19, 1.332, -1.699, -1.518, -0.52]))
 
     @property
     def base_xpos_offset(self):
         return {
-            "bins": (-0.5, -0.1, 0),
-            "empty": (-0.6, 0, 0),
-            "table": lambda table_length: (-0.16 - table_length / 2, 0, 0),
+            "bins": (0, 0, 0),
+            "empty": (0, 0, 0),
+            "table": (0, 0, 0),
         }
 
     @property
     def top_offset(self):
-        return np.array((0, 0, 1.0))
+        return np.array((0, 0, 0))
 
     @property
     def _horizontal_radius(self):

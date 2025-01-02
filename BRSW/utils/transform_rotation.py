@@ -213,3 +213,12 @@ print("Inverse Quaternion:", inverse_new)
 transform_quaternion = find_transform_quaternion(new, new2)
 
 print("Transform Quaternion:", transform_quaternion)
+quat1 = np.array([0, -0.707105, 0.707108, 0])
+quat2 = np.array([0.7071,0,0,0.7071])
+transform_quaternion = R.from_quat(quat1) * R.from_quat(quat2)
+print(transform_quaternion.as_quat())
+
+new3 = np.array([[-0.7527830004692078, -0.6570644974708557, -0.03979917988181114, -0.06795218586921692], [-0.1322062611579895, 0.21014028787612915, -0.9686910510063171, 0.11318542808294296], [0.6448559165000916, -0.7239525318145752, -0.24505801498889923, 0.4471486806869507], [0.0, 0.0, 0.0, 1.0]])
+translation, quaternion = matrix_to_translation_quaternion(new3)
+print("Translation:", translation)
+print("Quaternion:", quaternion)

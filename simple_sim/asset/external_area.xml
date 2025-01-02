@@ -1,0 +1,27 @@
+<mujoco model="external_area">
+    <asset>
+        <mesh name="table" file="./unknow/meshes/table.obj" scale = "1.0 1.0 1.0"/>
+    </asset>
+  <option impratio="20" cone="elliptic" density="1.2" viscosity="0.00002"/>
+  <size nconmax="5000" njmax="5000"/>
+    <worldbody>
+        <body name="table" pos="0 0 0" quat="1 0 0 0">
+            <geom type="mesh" mesh="table" rgba="0.8 0.8 0.8 1" group="1" contype="2" conaffinity="2"/>
+        </body>
+        <site name="test2" pos="0.59 -0 0.44714868" quat="1 0 0 0" size=".05" rgba="1 0 0 1" group="1"/>
+        <camera name="birdview" pos="-0.06795219 -0.31318543 0.44714868" quat="0. 0. -0.707  0.707" mode="fixed" fovy="76.22424707826806" />
+        <camera name="rightview" pos="0.59 -0 0.44714868" quat="0 0.707 0 0.707" mode="fixed" fovy="76.22424707826806" />
+        <!-- <camera name="rightview" pos="0 0 1" quat="0.707 0.707 0 0" mode="fixed" fovy="76.22424707826806" /> -->
+        <body name="camera" pos="0 0 0" quat="0 1 0 0">
+            <site name="test" pos="-0.06795219 -0.31318543 0.44714868" quat="1 0 0 0" size=".05" rgba="1 0 0 1" group="1"/>
+            <camera name="frontview" pos="0 0 0" quat="1 0 0 0" mode="fixed" fovy="76.22424707826806" />
+        </body>
+        <body name="target" pos="0.5 0 .5" quat="0 1 0 0" mocap="true">
+            <geom type="box" size=".05 .05 .05" contype="0" conaffinity="0" rgba=".6 .3 .3 .2"/>
+        </body>
+    </worldbody>
+    <visual>
+        <global offwidth="2048" offheight="1536"/>
+    </visual>
+    
+</mujoco>

@@ -3,11 +3,12 @@
     "body_parts": {
         "arms": {
             "right": {
-                "type": "OSC_POSE",
-                "input_max": 1,
-                "input_min": -1,
-                "output_max": [0.05, 0.05, 0.05, 0.5, 0.5, 0.5],
-                "output_min": [-0.05, -0.05, -0.05, -0.5, -0.5, -0.5],
+                "type": "JOINT_POSITION",
+                "input_max": 3.14,
+                "input_min": -3.14,
+                "input_type": "absolute",
+                "output_max": 3.14,
+                "output_min": -3.14,
                 "kp": 150,
                 "damping_ratio": 1,
                 "impedance_mode": "fixed",
@@ -16,7 +17,6 @@
                 "position_limits": null,
                 "orientation_limits": null,
                 "uncouple_pos_ori": true,
-                "input_type": "delta",
                 "input_ref_frame": "base",
                 "interpolation": null,
                 "ramp_ratio": 0.2,

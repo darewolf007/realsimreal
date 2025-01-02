@@ -146,6 +146,7 @@ class FixedBaseRobot(Robot):
             self.composite_controller.set_goal(action)
 
         applied_action_dict = self.composite_controller.run_controller(self._enabled_parts)
+        applied_action_dict['right'] = action[:self.robot_model.dof]
         for part_name, applied_action in applied_action_dict.items():
             applied_action_low = self.sim.model.actuator_ctrlrange[self._ref_actuators_indexes_dict[part_name], 0]
             applied_action_high = self.sim.model.actuator_ctrlrange[self._ref_actuators_indexes_dict[part_name], 1]
