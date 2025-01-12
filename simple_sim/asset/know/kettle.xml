@@ -1,0 +1,15 @@
+<mujoco model="kettle">
+  <asset>
+    <mesh name="my_object" file="meshes/kettle/textured.obj" scale = "1.0 1.0 1.0"/>
+    <texture file="meshes/kettle/texture_map.png" name="tex-kettle" type="2d"/>
+    <material name="coke" reflectance="0.7" texrepeat="5 5" texture="tex-kettle" texuniform="true"/>
+  </asset>
+  <worldbody>
+    <body>
+        <body name="object">
+            <geom pos="0 0 0" mesh="my_object" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="50" friction="0.95 0.3 0.1" contype="0" conaffinity="0" material="coke" group="1"/>
+            <geom pos="0 0 0" mesh="my_object" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="50" friction="0.95 0.3 0.1" material="coke" group="0"/>
+        </body>
+    </body>
+  </worldbody>
+</mujoco>

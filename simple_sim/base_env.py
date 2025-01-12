@@ -14,9 +14,9 @@ from robosuite.utils.mjcf_utils import (
     recolor_collision_geoms,
     string_to_array,
 )
-from know_obj.xml_obj import CanObject
+from know_obj.xml_obj import CanObject, KettleObject, CupObject
 from external_area import ExternalArea
-KNOW_OBJ = {"can": CanObject}
+KNOW_OBJ = {"can": CanObject, "kettle": KettleObject, "cup": CupObject}
 
 class SimpleEnv(ManipulationEnv):
     def __init__(
@@ -31,7 +31,7 @@ class SimpleEnv(ManipulationEnv):
         reward_scale=1.0,
         has_renderer=False,
         has_offscreen_renderer=True,
-        render_camera="frontview",
+        render_camera="sceneview",
         render_collision_mesh=False,
         render_visual_mesh=True,
         render_gpu_device_id=-1,
@@ -43,7 +43,7 @@ class SimpleEnv(ManipulationEnv):
         camera_names="frontview",
         camera_heights=256,
         camera_widths=256,
-        camera_depths=False,
+        camera_depths=True,
         camera_segmentations=None,  # {None, instance, class, element}
         renderer="mjviewer",
         renderer_config=None,
@@ -88,7 +88,7 @@ class SimpleEnv(ManipulationEnv):
             if label == "table":
                 continue
             if label in KNOW_OBJ.keys():
-                obj = KNOW_OBJ[label](name="can")
+                obj = KNOW_OBJ[label](name=label)
                 self.scene_objects.append(obj)
 
     def reward(self, action=None):
@@ -97,14 +97,21 @@ class SimpleEnv(ManipulationEnv):
 
     def _load_model(self):
         super()._load_model()
-        robot_xpos = self.env_info['hand_eye'][:3]
-        robot_quat = self.env_info['hand_eye'][3:]
+        robot_xpos = self.env_info['robot_base_pose'][:3]
+        robot_quat = self.env_info['robot_base_pose'][3:]
         self.robots[0].robot_model.set_base_xpos(robot_xpos.tolist())
         self.robots[0].robot_model._elements["root_body"].set("quat", array_to_string(robot_quat))
         self.robots[0].init_qpos = self.init_qpos
         base_path = os.path.dirname(os.path.realpath(__file__))
         obj_xml = os.path.join(base_path, "./asset/external_area.xml")
         mujoco_arena = ExternalArea(xml_path_completion(obj_xml))
+        for view_name, view_info in self.env_info['camera_info'].items():
+            mujoco_arena.set_camera(
+                camera_name=view_name,
+                pos=view_info["pos"],
+                quat=view_info["quat"],
+                fovy = np.array([76.22424707826806])
+            )
         self.model = ManipulationTask(
             mujoco_arena=mujoco_arena,
             mujoco_robots=[robot.robot_model for robot in self.robots],
@@ -124,10 +131,15 @@ class SimpleEnv(ManipulationEnv):
         return observables
 
     def _reset_internal(self):
+        self.init_qpos = self.env_info['robot_init_qpos']
         super()._reset_internal()
         for obj in self.scene_objects:
             idx = self.env_info['obj_info']['labels'].index(obj.name)
-            self.sim.data.set_joint_qpos(obj.joints[0], np.concatenate([self.env_info['obj_info']['poses'][idx][:3], self.env_info['obj_info']['poses'][idx][3:]]))
+            if self.env_info['obj_info']['grasp_obj'][idx]:
+                self.sim.data.set_joint_qpos(obj.joints[0], np.concatenate([self.env_info['obj_info']['poses'][idx][:3], self.env_info['obj_info']['poses'][idx][3:]]))
+            else:
+                self.sim.model.body_pos[self.obj_body_id[obj.name]] = self.env_info['obj_info']['poses'][idx][:3]
+                self.sim.model.body_quat[self.obj_body_id[obj.name]] = self.env_info['obj_info']['poses'][idx][3:]
             # item_indices = [index for index, value in enumerate(self.env_info['obj_info']['labels']) if value == obj.name]
 
     def _check_success(self):
@@ -135,3 +147,6 @@ class SimpleEnv(ManipulationEnv):
 
     def visualize(self, vis_settings):
         super().visualize(vis_settings=vis_settings)
+
+    def update_env_info(self, new_env_info):
+        self.env_info = new_env_info

@@ -9,7 +9,7 @@ class mink_ik:
         self.end_effector_task = mink.FrameTask(
             frame_name=prefix + "attachment_site",
             frame_type="site",
-            position_cost=1.0,
+            position_cost=0.5,
             orientation_cost=1.0,
             lm_damping=1.0,
         )
@@ -31,9 +31,9 @@ class mink_ik:
         self.limits.append(self.velocity_limit)
         self.mocap_id = self.model.body("target").mocapid[0]
         self.solver = "quadprog"
-        self.pos_threshold = 0.01
-        self.ori_threshold = 1e-4
-        self.max_iters = 2000
+        self.pos_threshold = 0.005
+        self.ori_threshold = 1e-3
+        self.max_iters = 3000
 
     #TODO
     def add_collision_pairs(self,end_effector, collision_pairs):
@@ -57,7 +57,8 @@ class mink_ik:
         self.configuration.update(data.qpos)
         data.mocap_pos[self.mocap_id] = target_translation
         data.mocap_quat[self.mocap_id] = target_rotation
-        T_wt = mink.SE3.from_mocap_name(self.model, data, "target")
+        # T_wt = mink.SE3.from_mocap_name(self.model, data, "target")
+        T_wt = mink.SE3(np.concatenate([target_rotation, target_translation]))
         self.end_effector_task.set_target(T_wt)
         for _ in range(self.max_iters):
             vel = mink.solve_ik(
@@ -68,5 +69,6 @@ class mink_ik:
             pos_achieved = np.linalg.norm(err[:3]) <= self.pos_threshold
             ori_achieved = np.linalg.norm(err[3:]) <= self.ori_threshold
             if pos_achieved and ori_achieved:
+                print("err", err)
                 break
         return self.configuration.q

@@ -16,13 +16,13 @@ class ExternalArea(MujocoXML):
     def __init__(self, fname):
         super().__init__(fname)
 
-    def set_camera(self, camera_name, pos, quat, camera_attribs=None):
+    def set_camera(self, camera_name, pos, quat, fovy, camera_attribs=None):
         camera = find_elements(root=self.worldbody, tags="camera", attribs={"name": camera_name}, return_first=True)
         if camera_attribs is None:
             camera_attribs = {}
         camera_attribs["pos"] = array_to_string(pos)
         camera_attribs["quat"] = array_to_string(quat)
-
+        camera_attribs["fovy"] = array_to_string(fovy)
         if camera is None:
             self.worldbody.append(new_element(tag="camera", name=camera_name, **camera_attribs))
         else:

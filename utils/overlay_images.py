@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 
-def overlay_images(image1, image2, alpha=0.5):
+def overlay_images(image1, image2, alpha=0.3):
     img1 = cv2.imread(image1)
     img2 = cv2.imread(image2)
     if img1.shape != img2.shape:
@@ -18,4 +18,5 @@ def overlay_images(image1, image2, alpha=0.5):
     cv2.destroyAllWindows()
 
 if __name__ == "__main__":
-    overlay_images("/home/haowen/hw_mine/Real_Sim_Real/data/4/scene_rgb_image/scene_1.jpg", "/home/haowen/hw_mine/Real_Sim_Real/front_view_image.png")
+    overlay_images("/home/haowen/hw_mine/Real_Sim_Real/data/can_pour_1/3/scene_rgb_image/scene_150.jpg",
+                   "/home/haowen/hw_mine/Real_Sim_Real/scene_view_image.png")
