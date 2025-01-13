@@ -14,8 +14,8 @@ from robosuite.utils.mjcf_utils import (
     recolor_collision_geoms,
     string_to_array,
 )
-from know_obj.xml_obj import CanObject, KettleObject, CupObject
-from external_area import ExternalArea
+from simple_sim.know_obj.xml_obj import CanObject, KettleObject, CupObject
+from simple_sim.external_area import ExternalArea
 KNOW_OBJ = {"can": CanObject, "kettle": KettleObject, "cup": CupObject}
 
 class SimpleEnv(ManipulationEnv):

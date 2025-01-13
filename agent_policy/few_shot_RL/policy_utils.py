@@ -5,7 +5,7 @@ from collections import deque
 import random
 from torch.utils.data import Dataset
 from torch import nn
-from data_augs import random_crop
+from agent_policy.few_shot_RL.data_augs import random_crop
 
 
 class eval_mode(object):
@@ -246,7 +246,9 @@ class ReplayBuffer(Dataset):
             self.keep_loaded_end = end
         self.demo_starts = np.load(os.path.join(save_dir, "demo_starts.npy"))
         self.demo_ends = np.load(os.path.join(save_dir, "demo_ends.npy"))
-        print("aaa")
+
+    def load_realsim(self, save_dir):
+        pass
 
     def __getitem__(self, idx):
         idx = np.random.randint(0, self.capacity if self.full else self.idx, size=1)

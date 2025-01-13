@@ -3,15 +3,17 @@ import time
 import cv2
 import pickle
 import numpy as np
-from base_env import SimpleEnv
-from robotic_ik import mink_ik
+import sys
+sys.path.insert(0, os.getcwd())
+from simple_sim.base_env import SimpleEnv
+from simple_sim.robotic_ik import mink_ik
 import matplotlib.pyplot as plt
 from scipy.spatial.transform import Rotation as R
-from sim_utils import transform_to_camera_frame, matrix_to_translation_quaternion, get_handeye_T
-from sim_utils import quaternion_to_matrixT, adjust_orientation_to_z_up, crop_image, get_7Dof_pose, count_files_in_directory
-from motion_planning import MotionPlanning
+from simple_sim.sim_utils import transform_to_camera_frame, matrix_to_translation_quaternion, get_handeye_T
+from simple_sim.sim_utils import quaternion_to_matrixT, adjust_orientation_to_z_up, crop_image, get_7Dof_pose, count_files_in_directory
+from simple_sim.motion_planning import MotionPlanning
 import robosuite.utils.camera_utils as CU
-from camera_util import get_real_depth_map
+from simple_sim.camera_util import get_real_depth_map
 
 class RealInSimulation:
     def __init__(self, robot, env_info, has_renderer, *args, **kwargs):
@@ -65,6 +67,10 @@ class RealInSimulation:
             raise NotImplementedError
 
     def init_scene_xmlobj_pose(self):
+        self.env_info['hand_eye'] = get_handeye_T(self.env_info['hand_eye_path'])
+        for i in range(len(self.env_info['obj_info']['poses'])):
+            pose_matrix = self.env_info['obj_info']['poses'][i]
+            self.env_info['obj_info']['poses'][i] = get_7Dof_pose(pose_matrix)
         if self.env_info['base_choose'] == "camera":
             translation, quaternion = matrix_to_translation_quaternion(np.linalg.inv(self.env_info['hand_eye']))
             rotation_z_180 = np.array([0, 0, 1, 0])
@@ -157,7 +163,6 @@ class RealInSimulation:
         # print("gripper1", self.env.sim.data.get_site_xpos('gripper0_right_ft_frame'))
         # print("gripper2", self.env.sim.data.get_site_xpos('gripper0_right_grip_site_cylinder'))
         # print("can", self.env.sim.data.get_site_xpos('can_up_site'))
-
 
     def step(self, action, use_joint_controller=False):
         if use_joint_controller:
@@ -282,7 +287,7 @@ class RealInSimulation:
                 action = end_effector_action[step]
                 step_action = self.pre_process_action(action, use_delta=True, use_joint_controller=False)
                 
-                if (self.last_action is not None and self.last_action[-1] == 0 and action[-1] == 1) or step == file_num:
+                if (self.last_action is not None and self.last_action[-1] == -1 and action[-1] == 1) or step == file_num:
                     step_data["rewards"] = 100
                 else:
                     step_data["rewards"] = 0
@@ -308,7 +313,7 @@ class RealInSimulation:
                 step_data["next_qpos"] = next_qpos
                 step_data["subtask_id"] = subtask_id
                 now_qpos = next_qpos
-                if step == file_num:
+                if step == len(end_effector_action)-1:
                     step_data["not_dones"] = False
                 else:
                     step_data["not_dones"] = True
@@ -435,15 +440,6 @@ class RealInSimulation:
         else:
             return None
 
-    def is_grasp(self):
-        pass
-
-    def is_done(self):
-        pass
-
-    def is_pour(self):
-        pass
-
 if __name__ == "__main__":
     task_name = "Pour can into a cup"
     subtask_1 = "Pick up the can"
@@ -456,18 +452,19 @@ if __name__ == "__main__":
     robot_init_pose = np.array([ -1.30487138, -1.69159379, 1.7358554 , -1.55820926, -1.51700765,
        -0.55815155])
     can_pose = np.array([[-0.29022616147994995, 0.9859233784675598, -0.04448934271931648, -0.21637749671936035], [-0.5486288070678711, -0.12811657786369324, 0.8261916637420654, 0.23622964322566986], [0.7840760350227356, 0.26419055461883545, 0.5616299510002136, 0.5847076177597046], [0.0, 0.0, 0.0, 1.0]])
-    can_pose_quat = get_7Dof_pose(can_pose)
-    can_pose_quat = np.array([-0.22424821, 0.18342368,  0.59452748,  0.33435988,  0.48682123, 0.67549918, -0.44148546])
+    # can_pose_quat = get_7Dof_pose(can_pose)
+    # can_pose_quat = np.array([-0.22424821, 0.18342368,  0.59452748,  0.33435988,  0.48682123, 0.67549918, -0.44148546])
     # can_pose_quat = np.array([-0.0660707, 0.16830145,  0.52134751, -0.44148546,  0.33435988,  0.48682123, 0.67549918])
     cup_pose = np.array([[0.43723738193511963, 0.8989970684051514, -0.02505527436733246, 0.09150402992963791], [0.29450204968452454, -0.16944658756256104, -0.9405087232589722, 0.18733008205890656], [-0.8497599959373474, 0.4038466811180115, -0.3388448655605316, 0.6819711923599243], [0.0, 0.0, 0.0, 1.0]])
-    cup_pose_quat = get_7Dof_pose(cup_pose)
-    scene_dict = {"labels": ["can", "cup"], "poses": [can_pose_quat, cup_pose_quat], "grasp_obj": [True, False]}
+    # cup_pose_quat = get_7Dof_pose(cup_pose)
+    scene_dict = {"labels": ["can", "cup"], "poses": [can_pose, cup_pose], "grasp_obj": [True, False]}
     data_save_path = os.path.join(base_path, "../data/sim_data/")
     env_info = {}
     env_info['data_save_path'] = data_save_path
     env_info['task_name'] = task_name
     env_info['subtask_language_info'] = [subtask_1, subtask_2]
     env_info['subtask_object_info'] = [subtask_1_obj, subtask_2_obj]
+    env_info['hand_eye_path'] = handeye_T_path
     env_info['hand_eye'] = handeye_T
     env_info['obj_info'] = scene_dict
     env_info['use_gravity'] = True
