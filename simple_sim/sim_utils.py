@@ -91,6 +91,14 @@ def get_7Dof_pose(matrix_T):
     translation = matrix_T[:3, 3]
     return np.concatenate([translation, quaternion])
 
+def add_noise_to_rotation_z(roation_quat, rotation_noise_bounds):
+    rotation = R.from_quat(roation_quat[[1, 2, 3, 0]])
+    z_rotation_noise = R.from_euler('z', np.random.uniform(rotation_noise_bounds[0], rotation_noise_bounds[1]), degrees=True)
+    noisy_rotation = z_rotation_noise * rotation
+    noisy_quaternion_xyzw = noisy_rotation.as_quat()
+    noisy_quaternion_wxyz = noisy_quaternion_xyzw[[3, 0, 1, 2]]
+    return  noisy_quaternion_wxyz
+
 def count_files_in_directory(directory):
     file_count = 0
     for root, dirs, files in os.walk(directory):

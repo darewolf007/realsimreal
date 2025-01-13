@@ -1,4 +1,6 @@
 import os
+import sys
+sys.path.insert(0, os.getcwd())
 import numpy as np
 from robosuite.environments.manipulation.manipulation_env import ManipulationEnv
 from robosuite.models.tasks import ManipulationTask
@@ -16,6 +18,7 @@ from robosuite.utils.mjcf_utils import (
 )
 from simple_sim.know_obj.xml_obj import CanObject, KettleObject, CupObject
 from simple_sim.external_area import ExternalArea
+from simple_sim.sim_utils import add_noise_to_rotation_z
 KNOW_OBJ = {"can": CanObject, "kettle": KettleObject, "cup": CupObject}
 
 class SimpleEnv(ManipulationEnv):
@@ -118,6 +121,20 @@ class SimpleEnv(ManipulationEnv):
             mujoco_objects=self.scene_objects,
         )
     
+    def object_initializer(self):
+        for obj in self.scene_objects:
+            idx = self.env_info['obj_info']['labels'].index(obj.name)
+            obj_position = self.env_info['obj_info']['poses'][idx][:3]
+            obj_quat = self.env_info['obj_info']['poses'][idx][3:]
+            if self.env_info['init_noise']:
+                obj_position[:2] += np.random.uniform(self.env_info['init_translation_noise_bounds'][0], self.env_info['init_translation_noise_bounds'][1], size=2)
+                obj_quat = add_noise_to_rotation_z(obj_quat, self.env_info['init_rotation_noise_bounds'])
+            if self.env_info['obj_info']['grasp_obj'][idx]:
+                self.sim.data.set_joint_qpos(obj.joints[0], np.concatenate([obj_position, obj_quat]))
+            else:
+                self.sim.model.body_pos[self.obj_body_id[obj.name]] = obj_position
+                self.sim.model.body_quat[self.obj_body_id[obj.name]] = obj_quat
+
     def get_mujoco_model(self):
         return self.model.get_model(mode="mujoco")
 
@@ -133,13 +150,14 @@ class SimpleEnv(ManipulationEnv):
     def _reset_internal(self):
         self.init_qpos = self.env_info['robot_init_qpos']
         super()._reset_internal()
-        for obj in self.scene_objects:
-            idx = self.env_info['obj_info']['labels'].index(obj.name)
-            if self.env_info['obj_info']['grasp_obj'][idx]:
-                self.sim.data.set_joint_qpos(obj.joints[0], np.concatenate([self.env_info['obj_info']['poses'][idx][:3], self.env_info['obj_info']['poses'][idx][3:]]))
-            else:
-                self.sim.model.body_pos[self.obj_body_id[obj.name]] = self.env_info['obj_info']['poses'][idx][:3]
-                self.sim.model.body_quat[self.obj_body_id[obj.name]] = self.env_info['obj_info']['poses'][idx][3:]
+        self.object_initializer()
+        # for obj in self.scene_objects:
+        #     idx = self.env_info['obj_info']['labels'].index(obj.name)
+        #     if self.env_info['obj_info']['grasp_obj'][idx]:
+        #         self.sim.data.set_joint_qpos(obj.joints[0], np.concatenate([self.env_info['obj_info']['poses'][idx][:3], self.env_info['obj_info']['poses'][idx][3:]]))
+        #     else:
+        #         self.sim.model.body_pos[self.obj_body_id[obj.name]] = self.env_info['obj_info']['poses'][idx][:3]
+        #         self.sim.model.body_quat[self.obj_body_id[obj.name]] = self.env_info['obj_info']['poses'][idx][3:]
             # item_indices = [index for index, value in enumerate(self.env_info['obj_info']['labels']) if value == obj.name]
 
     def _check_success(self):

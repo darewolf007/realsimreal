@@ -5,14 +5,14 @@ import pickle
 import numpy as np
 import sys
 sys.path.insert(0, os.getcwd())
+import matplotlib.pyplot as plt
+import robosuite.utils.camera_utils as CU
 from simple_sim.base_env import SimpleEnv
 from simple_sim.robotic_ik import mink_ik
-import matplotlib.pyplot as plt
 from scipy.spatial.transform import Rotation as R
 from simple_sim.sim_utils import transform_to_camera_frame, matrix_to_translation_quaternion, get_handeye_T
 from simple_sim.sim_utils import quaternion_to_matrixT, adjust_orientation_to_z_up, crop_image, get_7Dof_pose, count_files_in_directory
 from simple_sim.motion_planning import MotionPlanning
-import robosuite.utils.camera_utils as CU
 from simple_sim.camera_util import get_real_depth_map
 
 class RealInSimulation:
@@ -20,12 +20,15 @@ class RealInSimulation:
         self.env_info = env_info
         self.has_renderer = has_renderer
         self.last_action = None
+        self.last_observation = None
         self.sub_task_static_point = []
         self.sub_task_moving_obj = []
         self.sub_task_idx = 0
         self.sub_task_step_num = 0
         self.sub_task_min_num = 40
-        self.sub_task_max_num = 100 
+        self.sub_task_max_num = 100
+        self.all_task_step_num = 0 
+        self.all_task_max_num = 200
         self.init_scene_xmlobj_pose()
         self.init_scene_camera_pose()
         self.init_motion_planning()
@@ -164,7 +167,7 @@ class RealInSimulation:
         # print("gripper2", self.env.sim.data.get_site_xpos('gripper0_right_grip_site_cylinder'))
         # print("can", self.env.sim.data.get_site_xpos('can_up_site'))
 
-    def step(self, action, use_joint_controller=False):
+    def _step(self, action, use_joint_controller=False):
         if use_joint_controller:
             observations, reward, done, info = self.env.step(action)
         else:
@@ -175,6 +178,21 @@ class RealInSimulation:
             action = np.concatenate([qpos, np.array([gripper_data])])
             observations, reward, done, info = self.env.step(action)
         return observations, reward, done, info
+
+    def multi_step(self, action, use_joint_controller=False, step_num=3):
+        for i in range(step_num):
+            observations, reward, done, info = self._step(action, use_joint_controller)
+        self.all_task_step_num += 1
+        subtask_id = self.get_subtask_id()
+        info['subtask_id'] = subtask_id
+        self.last_observation = observations
+        return observations, reward, done, info
+
+    def get_subtask_id(self):
+        subtask_id = self.get_subtask()
+        if subtask_id != -1:
+            self.sub_task_step_num += 1
+        return subtask_id
 
     def replay_demonstration(self, use_joint_controller=False, is_collect = False, begin_step = 1):
         end_effector_action= []
@@ -219,9 +237,9 @@ class RealInSimulation:
                 current_end_xquat = R.from_matrix(current_end_xquat).as_quat()
                 current_end_xquat = current_end_xquat[[3, 0, 1, 2]]
                 action = self.pre_process_action(action, use_delta=False, use_joint_controller=use_joint_controller)
-                self.step(action, use_joint_controller)
-                self.step(action, use_joint_controller)
-                observations, reward, done, info = self.step(action, use_joint_controller)
+                self._step(action, use_joint_controller)
+                self._step(action, use_joint_controller)
+                observations, reward, done, info = self._step(action, use_joint_controller)
                 end_xpos = self.env.sim.data.get_site_xpos('robot0_attachment_site').copy()
                 end_quat = self.env.sim.data.get_site_xmat('robot0_attachment_site').copy()
                 end_quat = R.from_matrix(end_quat).as_quat()
@@ -250,9 +268,9 @@ class RealInSimulation:
                         if play_time == 0:
                             break
                     step_action = self.pre_process_action(action, use_delta=True, use_joint_controller=False)
-                    self.step(step_action, False)
-                    self.step(step_action, False)
-                    next_observations, reward, done, info = self.step(step_action, False)
+                    self._step(step_action, False)
+                    self._step(step_action, False)
+                    next_observations, reward, done, info = self._step(step_action, False)
                     current_end_xpos = self.env.sim.data.get_site_xpos('robot0_attachment_site').copy()
                     error = current_end_xpos - step_action[:3]
                     end_quat = self.env.sim.data.get_site_xmat('robot0_attachment_site').copy()
@@ -291,9 +309,9 @@ class RealInSimulation:
                     step_data["rewards"] = 100
                 else:
                     step_data["rewards"] = 0
-                self.step(step_action, False)
-                self.step(step_action, False)
-                next_observations, reward, done, info = self.step(step_action, False)
+                self._step(step_action, False)
+                self._step(step_action, False)
+                next_observations, reward, done, info = self._step(step_action, False)
                 current_end_xpos = self.env.sim.data.get_site_xpos('robot0_attachment_site').copy()
                 error = current_end_xpos - step_action[:3]
                 end_quat = self.env.sim.data.get_site_xmat('robot0_attachment_site').copy()
@@ -335,16 +353,18 @@ class RealInSimulation:
         self.in_subtask = False
         self.out_subtask = False
         self.sub_task_step_num = 0
+        self.all_task_step_num = 0
         self.max_reward = len(self.env_info['subtask_language_info'])
         if not self.env_info['use_gravity']:
             self.env.sim.model.opt.gravity[:] = [0.0, 0.0, 0.0]
         self.init_subtask_info()
         init_pose = self.env_info['robot_init_qpos']
         action = np.concatenate([init_pose, np.array([-1])])
-        self.step(action, True)
-        observations, reward, done, info = self.step(action, True)
+        self._step(action, True)
+        observations, reward, done, info = self._step(action, True)
         target_obj = self.env_info['subtask_object_info'][self.sub_task_idx][1]
         new_observation = self.pre_process_obs_image(observations, target_obj, 0, is_collect = False, is_crop = True)
+        self.last_observation = new_observation
         return new_observation
 
     def is_in_subtask(self, threshold=0.15):
@@ -435,11 +455,26 @@ class RealInSimulation:
             start_position = self.env.sim.data.get_site_xpos('robot0_attachment_site').copy()
             target_position = self.ask_target_pos(current_image, target_object, target_object_site_pos)
             xyz_trajectory = self.planning.plan(start_position, target_position)
+            delata_action = np.diff(xyz_trajectory, axis=0, prepend=start_position.reshape(1, -1))[1:]
             print(xyz_trajectory)
-            return xyz_trajectory
+            return delata_action
         else:
             return None
 
+    @property
+    def observation_shape(self):
+        if self.env_info['crop_image_size'] is not None:
+            return (3, self.env_info['crop_image_size'][0], self.env_info['crop_image_size'][1])
+        else:
+            return (3, self.env_info['camera_heights'][0], self.env_info['camera_widths'][0])
+        
+    @property
+    def action_shape(self):
+        if self.env_info['use_joint_controller']:
+            return (self.env.robots[0].dof,)
+        else:
+            return (8,)
+        
 if __name__ == "__main__":
     task_name = "Pour can into a cup"
     subtask_1 = "Pick up the can"
@@ -468,9 +503,10 @@ if __name__ == "__main__":
     env_info['hand_eye'] = handeye_T
     env_info['obj_info'] = scene_dict
     env_info['use_gravity'] = True
-    env_info['data_path'] = "/home/haowen/hw_mine/Real_Sim_Real/data/pour_all/8/traj/"
+    env_info['data_path'] = "/home/haowen/hw_mine/Real_Sim_Real/data/real_data/pour_all/8/traj/"
     # env_info['base_choose'] = "camera"
     env_info['base_choose'] = "robot"
+    robot_init_pose = np.load(env_info['data_path'] + "joint_2.npy")
     env_info['robot_init_qpos'] = robot_init_pose
     env_info['max_reward'] = 1
     env_info['camera_depths'] = True
@@ -480,11 +516,14 @@ if __name__ == "__main__":
     env_info['camera_names'] = ["sceneview", "birdview", "frontview", "rightview"]
     env_info['has_renderer'] = True
     env_info['control_freq'] = 20
+    env_info['init_noise'] = False
+    env_info['init_translation_noise_bounds'] = (-0.03, 0.003)
+    env_info['init_rotation_noise_bounds'] = (-5, 5)
     test_real = RealInSimulation("UR5e",
                                  env_info,
                                  has_renderer=env_info['has_renderer'],
                                  has_offscreen_renderer=True,
-                                 render_camera=env_info['camera_names'][1],
+                                 render_camera=env_info['camera_names'][2],
                                  ignore_done=True,
                                  use_camera_obs=True,
                                  camera_depths=env_info['camera_depths'],

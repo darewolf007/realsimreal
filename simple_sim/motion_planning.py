@@ -14,3 +14,12 @@ class MotionPlanning:
             return self.linear_interpolation(start_pose, goal_pose, step)
         else:
             raise NotImplementedError("Algorithm not implemented")
+        
+if __name__ == "__main__":
+    motion_planning = MotionPlanning()
+    start_pose = np.array([0, 0, 0])
+    goal_pose = np.array([1, 1, 1])
+    path = motion_planning.plan(start_pose, goal_pose, 5)
+    relative_trajectory = np.diff(path, axis=0, prepend=start_pose.reshape(1, -1))[1:]
+
+    print(path)
