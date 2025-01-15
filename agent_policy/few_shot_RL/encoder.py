@@ -47,8 +47,8 @@ class PixelEncoder(nn.Module):
         out_dim = self.forward_conv(x, flatten=False).shape[-1]
 
         self.conv_layer_norm = conv_layer_norm
-        if self.conv_layer_norm:
-            print("Using LayerNorm!")
+        # if self.conv_layer_norm:
+        #     print("Using LayerNorm!")
         if self.conv_layer_norm:
             self.conv_ln = nn.ModuleList(
                 [nn.LayerNorm(self.outputs["conv1"].shape[1:])]

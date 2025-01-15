@@ -3,12 +3,13 @@ import base64
 import numpy as np
 import os
 import io
+import PIL.Image as Image
 os.environ['ALL_PROXY'] = ''
 os.environ['all_proxy'] = ''
 
 def ask_online(image_data, prompt, other_image = None, model_choice = "claude-3-5-sonnet-20240620", max_retries=20):
     client = OpenAI(
-        api_key="sk-OYzv6RNRKu5uJc4qURvWQkpgJo97xY94UXcWjHbX2xuo5N4j",
+        api_key="sk-QyHM6JgtRWhaM33UHyx7ovfhSzXn07GdO4klT7nl4CaR6XzK",
         base_url="https://api.aikeji.vip/v1"
     )
     if isinstance(image_data, np.ndarray):
@@ -29,6 +30,7 @@ def ask_online(image_data, prompt, other_image = None, model_choice = "claude-3-
         other_encoded_image = base64.b64encode(other_buffer.read()).decode('utf-8')
     retries = 0
     while retries < max_retries:
+        print("promot", prompt)
         try:
             if other_image is not None:
                 response = client.chat.completions.create(
@@ -58,6 +60,7 @@ def ask_online(image_data, prompt, other_image = None, model_choice = "claude-3-
                     stream=False
                 )
                 print(response.choices[0].message.content)
+                content = response.choices[0].message.content
                 if content == "0" or content == "1":
                     return content
                 else:
@@ -88,11 +91,10 @@ def ask_online(image_data, prompt, other_image = None, model_choice = "claude-3-
                     return content
                 else:
                     return "0"
-                # return response.choices[0].message.content
-            
+                # return response.choices[0].message.content    
         except Exception as e:
-            print("Max retries reached. Exiting.")
-            return "0"
+            print("network error, retrying...")
+    return "0"
 
 def ask_grasp_subtask(image_dict, moving_obj = "", target_obj = "can"):
     promot_1 = f"Is the object {target_obj} in the current perspective significantly occluded by the two-finger gripper? 0 represents no occlusion, and 1 represents occlusion. Directly output 0 or 1."
@@ -107,7 +109,7 @@ def ask_grasp_subtask(image_dict, moving_obj = "", target_obj = "can"):
         else:
             image_state = ask_online(image_data, promot_2_1)
         image_state_list.append(int(image_state))
-    if np.array(image_state).sum() >= 2:
+    if np.array(image_state_list).sum() >= 2:
         return True
     else:
         return False
@@ -155,9 +157,9 @@ if __name__ == "__main__":
     # front_view_image = Image.open("/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/Pour can into a cup1/rgb_frontview/60.png").convert("RGB")
     # right_view_image = Image.open("/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/Pour can into a cup1/rgb_rightview/60.png").convert("RGB")
     # bird_view_image = Image.open("/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/Pour can into a cup1/rgb_birdview/60.png").convert("RGB")
-    front_view_image = Image.open("/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/Pour can into a cup1/rgb_frontview/170.png").convert("RGB")
-    right_view_image = Image.open("/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/Pour can into a cup1/rgb_rightview/170.png").convert("RGB")
-    bird_view_image = Image.open("/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/Pour can into a cup1/rgb_birdview/170.png").convert("RGB")
+    front_view_image = Image.open("/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/pour_can_new/Pour can into a cup1/rgb_frontview/169.png").convert("RGB")
+    right_view_image = Image.open("/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/pour_can_new/Pour can into a cup1/rgb_rightview/169.png").convert("RGB")
+    bird_view_image = Image.open("/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/pour_can_new/Pour can into a cup1/rgb_birdview/169.png").convert("RGB")
     image_dict = {
         "front_view": np.array(front_view_image),
         "right_view": np.array(right_view_image),

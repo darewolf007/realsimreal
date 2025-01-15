@@ -1,6 +1,8 @@
 import torch
 import numpy as np
 import os
+import sys
+sys.path.insert(0, os.getcwd())
 from collections import deque
 import random
 from torch.utils.data import Dataset
@@ -240,8 +242,8 @@ class ReplayBuffer(Dataset):
             self.obses[start:end] = payload[0]
             self.next_obses[start:end] = payload[1]
             self.actions[start:end] = payload[2]
-            self.rewards[start:end] = payload[3]
-            self.not_dones[start:end] = payload[4]
+            self.rewards[start:end] = payload[3].reshape(-1, 1)
+            self.not_dones[start:end] = payload[4].reshape(-1, 1)
             self.idx = end
             self.keep_loaded_end = end
         self.demo_starts = np.load(os.path.join(save_dir, "demo_starts.npy"))
@@ -290,11 +292,12 @@ def create_mlp(in_features, out_features, n_hidden_layers=3, hidden_size=512):
 if __name__ == "__main__":
     buffer = ReplayBuffer(
         obs_shape=(3, 128, 128),
-        action_shape=(7,),
+        action_shape=(8,),
         capacity=100000,
         batch_size=1,
         device="cpu",
         image_size=112,
-        load_dir="/home/haowen/hw_mine/Real_Sim_Real/data/10",
+        load_dir="/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/pt_data",
         keep_loaded=True,
         )
+    buffer.sample_rad(None)

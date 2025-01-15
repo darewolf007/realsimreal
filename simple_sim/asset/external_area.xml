@@ -1,5 +1,6 @@
 <mujoco model="external_area">
     <asset>
+        <texture builtin="gradient" height="256" rgb1="0.1 0.1 0.1" rgb2="0.2 0.2 0.2" type="skybox" width="256"/>
         <mesh name="table" file="./unknow/meshes/table.obj" scale = "1.0 1.0 1.0"/>
         <texture file="./unknow/textures/light-wood.png" type="2d" name="tex-light-wood"/>
         <material name="light-wood" reflectance="0" texrepeat="15 15" texture="tex-light-wood" texuniform="true"/>
@@ -7,10 +8,10 @@
   <option impratio="20" cone="elliptic" density="1.2" viscosity="0.00002"/>
   <size nconmax="5000" njmax="5000"/>
     <worldbody>
+        <geom condim="3" group="1" name="floor" pos="-0.6 0.6 0" material="light-wood" size="1.31 0.53 .1" type="plane" quat="0.924 0 0 0.383"/>
         <body name="table" pos="0 0 0" quat="1 0 0 0">
-            <geom type="mesh" pos="0.05 -0.07 -0.04" material="light-wood" mesh="table" group="1" contype="2" conaffinity="2"/>
-            <geom condim="3" group="0" name="floor" pos="0 0 0" rgba="1 0 0 1" size="2 2 .125" type="plane"/>
-            <geom condim="3" group="1" name="ur_plane" pos="0 0 0" rgba="0 0 0 1" size="0.31 0.31 .1" euler="0 0 0.785" type="plane"/>
+            <geom type="mesh" pos="0.05 -0.07 -0.04" material="light-wood" mesh="table" group="0" contype="2" conaffinity="2"/>
+            <geom condim="3" group="1" name="ur_plane" pos="0 0 0" rgba="0.2 0.2 0.2 1" size="0.31 0.31 .1" quat="0.924 0 0 0.383" type="plane"/>
         </body>
         <body name="camera_lookat" pos="-0.2 0.2 0.08" quat="1 0 0 0">
             <geom size="0.1" type="sphere" rgba="0 0 1 0.5" group="0" contype="2" conaffinity="2"/>

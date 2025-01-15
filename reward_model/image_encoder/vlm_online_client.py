@@ -3,6 +3,7 @@ import base64
 import numpy as np
 import os
 import io
+import PIL.Image as Image
 os.environ['ALL_PROXY'] = ''
 os.environ['all_proxy'] = ''
 
@@ -151,7 +152,6 @@ def ask_pour_subtask(image_dict, moving_obj = "", target_obj = ""):
             return False
 
 if __name__ == "__main__":
-    import PIL.Image as Image
     # front_view_image = Image.open("/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/Pour can into a cup1/rgb_frontview/60.png").convert("RGB")
     # right_view_image = Image.open("/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/Pour can into a cup1/rgb_rightview/60.png").convert("RGB")
     # bird_view_image = Image.open("/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/Pour can into a cup1/rgb_birdview/60.png").convert("RGB")

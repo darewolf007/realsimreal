@@ -5,8 +5,9 @@ import pickle
 import torch
 import numpy as np
 import gymnasium as gym
+import matplotlib.pyplot as plt
 from utils.data_convert_pt import convert_pickles_to_pt
-from utils.image_util import resize_image
+from utils.image_util import resize_image, save_image_pkl
 from simple_sim.real_to_simulation import RealInSimulation
 from reward_model.online_reward_model import ask_grasp_subtask, ask_pour_subtask
 from agent_policy.few_shot_RL.policy import FewDemoPolicy
@@ -21,12 +22,10 @@ class PourSimulation(RealInSimulation):
             self.action_space = gym.spaces.Box(low=-env_info['max_action'], high=env_info['max_action'], shape=(8,), dtype=float)
 
     def step(self, action, use_delta=True, use_joint_controller=False):
-        action = np.clip(action, -self.env_info['max_action'], self.env_info['max_action'])
+        action[:7] = np.clip(action[:7], -self.env_info['max_action'], self.env_info['max_action'])
+        action[-1] = 1 if action[-1] > 0 else -1
         reward = self.update_reward(action)
-        action = self.pre_process_action(action, use_delta, use_joint_controller)
-        observations, _, _, info = super().multi_step(action, use_joint_controller)
-        target_obj = self.env_info['subtask_object_info'][self.sub_task_idx][1]
-        next_observation = self.pre_process_obs_image(observations, target_obj, self.all_task_step_num, is_collect = False, is_crop = True)
+        next_observation, _, _, info = super().multi_step(action, use_delta, use_joint_controller)
         # obs = next_observation['crop_sceneview_image']
         obs = resize_image(next_observation['crop_sceneview_image'], 1/6)
         obs = np.transpose(obs, (2, 0, 1))
@@ -36,70 +35,91 @@ class PourSimulation(RealInSimulation):
         return obs, reward, False, info
     
     def update_reward(self, action):
-        if not self.grasp_flag and (self.last_action is not None and self.last_action[-1] == -1 and action[-1] == 1):
-            self.grasp_flag = self.is_grasp(self.last_observation)
-            if self.grasp_flag:
-                return 100
-        return 0
+        # if not self.grasp_flag and (self.last_action is not None and self.last_action[-1] == -1 and action[-1] == 1):
+        #     print("in update reward")
+        #     self.grasp_flag = self.is_grasp(self.last_observation)
+        #     if self.grasp_flag:
+        #         return 100
+        return -1
 
     def update_done(self, next_observation):
-        if self.grasp_flag and (self.all_task_max_num - self.all_task_step_num < 30):
-            if self.all_task_step_num % 10 == 0:
-                done = self.is_done(next_observation)
-                return done
+        # if self.grasp_flag and (self.all_task_max_num - self.all_task_step_num < 30):
+        #     if self.all_task_step_num % 10 == 0:
+        #         print("in update done")
+        #         done = self.is_done(next_observation)
+        #         return done
         return False
 
     def is_done(self, observations):
         moving_obj = self.env_info['subtask_object_info'][self.sub_task_idx][0]
         target_obj = self.env_info['subtask_object_info'][self.sub_task_idx][1]
         image_dict = {
-            "front_view": resize_image(observations["front_view"], 0.25),
-            "right_view": resize_image(observations["right_view"], 0.25),
-            "bird_view": resize_image(observations["bird_view"], 0.25)
+            "front_view": resize_image(observations["frontview_image"], 0.5),
+            "right_view": resize_image(observations["rightview_image"], 0.5),
+            "bird_view": resize_image(observations["birdview_image"], 0.5)
         }
         done_flag = ask_pour_subtask(image_dict, moving_obj, target_obj)
+        if self.env_info['save_online_image']:
+            image_dict['result'] = done_flag
+            image_dict['obs_view'] = resize_image(observations['crop_sceneview_image'], 1/6)
+            save_image_pkl(image_dict, self.env_info['online_data_save_path'] + "/done/", True)
         return done_flag
 
     def is_grasp(self, observations):
         moving_obj = self.env_info['subtask_object_info'][self.sub_task_idx][0]
         target_obj = self.env_info['subtask_object_info'][self.sub_task_idx][1]
         image_dict = {
-            "front_view": resize_image(observations["front_view"], 0.25),
-            "right_view": resize_image(observations["right_view"], 0.25),
-            "bird_view": resize_image(observations["bird_view"], 0.25)
+            "front_view": resize_image(observations["frontview_image"], 0.5),
+            "right_view": resize_image(observations["rightview_image"], 0.5),
+            "bird_view": resize_image(observations["birdview_image"], 0.5)
         }
         grasp_flag = ask_grasp_subtask(image_dict, moving_obj, target_obj)
+        if self.env_info['save_online_image']:
+            image_dict['result'] = grasp_flag
+            save_image_pkl(image_dict, self.env_info['online_data_save_path'] + "/grasp/", True)
         return grasp_flag
 
     def is_pour(self):
         pass
 
     def reset(self):
-        super().reset()
         self.grasp_flag = False
+        observation = super().reset()
+        obs = resize_image(observation['crop_sceneview_image'], 1/6)
+        obs = np.transpose(obs, (2, 0, 1))
+        return obs
 
 def set_params():
-    task_name = "Pour can into a cup"
+    task_name = "Pour_can_into_cup"
     subtask_1 = "Pick up the can"
     subtask_2 = "Pour the can into the cup"
     subtask_1_obj = ["gripper", "can"]
     subtask_2_obj = ["can", "cup"]
     base_path = os.path.dirname(os.path.realpath(__file__))
+    work_dir = os.path.join(base_path, "./experiments/" + task_name)
+    real_data_dir = os.path.join(base_path, "./data/sim_data/" + task_name)
     handeye_T_path = os.path.join(base_path, "./configs/ur5_kinect_handeyecalibration_eye_on_base.yaml")
-    robot_init_pose = np.array([ -1.30487138, -1.69159379, 1.7358554 , -1.55820926, -1.51700765, -0.55815155])
-    can_pose = np.array([[-0.29022616147994995, 0.9859233784675598, -0.04448934271931648, -0.21637749671936035], [-0.5486288070678711, -0.12811657786369324, 0.8261916637420654, 0.23622964322566986], [0.7840760350227356, 0.26419055461883545, 0.5616299510002136, 0.5847076177597046], [0.0, 0.0, 0.0, 1.0]])
-    cup_pose = np.array([[0.43723738193511963, 0.8989970684051514, -0.02505527436733246, 0.09150402992963791], [0.29450204968452454, -0.16944658756256104, -0.9405087232589722, 0.18733008205890656], [-0.8497599959373474, 0.4038466811180115, -0.3388448655605316, 0.6819711923599243], [0.0, 0.0, 0.0, 1.0]])
-    scene_dict = {"labels": ["can", "cup"], "poses": [can_pose, cup_pose], "grasp_obj": [True, False]}
-    data_save_path = os.path.join(base_path, "../data/sim_data/")
+    replay_data_save_path = os.path.join(base_path, "../data/sim_data/")
+    robot_init_pose = np.array([-1.28626711, -1.91235318,  2.03487999, -1.58658661, -1.50936824, -0.32230741])
     env_info = {}
-    env_info['data_save_path'] = data_save_path
+    # env_info['obj_pose_base'] = "camera"
+    # can_pose = np.array([[-0.29022616147994995, 0.9859233784675598, -0.04448934271931648, -0.21637749671936035], [-0.5486288070678711, -0.12811657786369324, 0.8261916637420654, 0.23622964322566986], [0.7840760350227356, 0.26419055461883545, 0.5616299510002136, 0.5847076177597046], [0.0, 0.0, 0.0, 1.0]])
+    # cup_pose = np.array([[0.43723738193511963, 0.8989970684051514, -0.02505527436733246, 0.09150402992963791], [0.29450204968452454, -0.16944658756256104, -0.9405087232589722, 0.18733008205890656], [-0.8497599959373474, 0.4038466811180115, -0.3388448655605316, 0.6819711923599243], [0.0, 0.0, 0.0, 1.0]])
+    env_info['obj_pose_base'] = "robot"
+    can_pose = np.array([-2.58006106e-01,  4.91104923e-01,  4.95361287e-02,  5.03430916e-02, 1.38954074e-15, -3.13515130e-16,  9.98731983e-01])
+    cup_pose = np.array([-3.99759997e-01,  2.25097344e-01,  4.50455912e-02,  1.47272580e-01, 3.50769505e-18,  5.26154258e-18,  9.89095944e-01])
+    scene_dict = {"labels": ["can", "cup"], "poses": [can_pose, cup_pose], "grasp_obj": [True, False]}
+    env_info['online_data_save_path'] = os.path.join(work_dir, "promot_data")
+    env_info['replay_data_save_path'] = replay_data_save_path
     env_info['task_name'] = task_name
     env_info['subtask_language_info'] = [subtask_1, subtask_2]
     env_info['subtask_object_info'] = [subtask_1_obj, subtask_2_obj]
     env_info['hand_eye_path'] = handeye_T_path
     env_info['obj_info'] = scene_dict
     env_info['use_gravity'] = True
-    env_info['data_path'] = "/home/haowen/hw_mine/Real_Sim_Real/data/pour_all/8/traj/"
+    env_info['is_crop'] = True
+    env_info['data_path'] = None
+    env_info['save_online_image'] = True
     # env_info['base_choose'] = "camera"
     env_info['base_choose'] = "robot"
     env_info['robot_init_qpos'] = robot_init_pose
@@ -113,18 +133,17 @@ def set_params():
     env_info['control_freq'] = 20
     env_info['use_joint_controller'] = False
     env_info['max_action'] = 0.1
-    env_info['init_noise'] = True
+    env_info['init_noise'] = False
     env_info['init_translation_noise_bounds'] = (-0.03, 0.003)
     env_info['init_rotation_noise_bounds'] = (-5, 5)
     
-    work_dir = os.path.join(base_path, "./experiments/" + task_name)
-    real_data_dir = os.path.join(base_path, "./data/sim_data/" + task_name)
+
     policy_params = {
     "work_dir": work_dir,
     "task_name": task_name,
     "sub_task_promot": [subtask_1, subtask_2],
     "replay_buffer_capacity": 100000,
-    "replay_buffer_load_dir": real_data_dir,
+    "replay_buffer_load_dir": "/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/pt_data",
     "replay_buffer_keep_loaded": True,
     "pretrain_mode": None,
     "pre_transform_image_size": 128,
@@ -167,7 +186,7 @@ def set_params():
     "seed": 1,
     "save_tb": True,
     "save_buffer": True,
-    "save_video": True,
+    "save_video": False,
     "save_sac": True,
     "detach_encoder": False,
     "v_clip_low": None,
@@ -187,7 +206,7 @@ def trainer():
                         env_info,
                         has_renderer=env_info['has_renderer'],
                         has_offscreen_renderer=True,
-                        render_camera=env_info['camera_names'][1],
+                        render_camera=env_info['camera_names'][3],
                         ignore_done=True,
                         use_camera_obs=True,
                         camera_depths=env_info['camera_depths'],
@@ -201,3 +220,32 @@ def trainer():
 
 if __name__ == "__main__":
     trainer()
+    # env_info, policy_params = set_params()
+    # env = PourSimulation("UR5e",
+    #                     env_info,
+    #                     has_renderer=env_info['has_renderer'],
+    #                     has_offscreen_renderer=True,
+    #                     render_camera=env_info['camera_names'][3],
+    #                     ignore_done=True,
+    #                     use_camera_obs=True,
+    #                     camera_depths=env_info['camera_depths'],
+    #                     control_freq=env_info['control_freq'],
+    #                     renderer="mjviewer",
+    #                     camera_heights=env_info['camera_heights'],
+    #                     camera_widths=env_info['camera_widths'],
+    #                     camera_names=env_info['camera_names'],)
+    # traj_path = os.path.join("/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/test/data")
+    # files = sorted(os.listdir(traj_path), key=lambda x: int(x.split(".")[0]))
+    # env.reset()
+    # for file in files:
+    #     if file.endswith(".pkl"):
+    #         file_path = os.path.join(traj_path, file)
+    #         with open(file_path, "rb") as f:
+    #             data = pickle.load(f)
+    #             action = data['actions']
+    #             obs, reward, done, info = env.step(action)
+    #             print("reward", reward)
+    #             print("done", done)
+    #             print("info", info)
+    # env.close()
+    

@@ -96,6 +96,7 @@ class FewDemoPolicy:
         # self.train_RL_policy(RL_agent_name=RL_agent_name)
 
     def init_tokenize(self):
+        self.subtask_promot_tokens = []
         self.approaching_token = clip.tokenize("approaching").to(self.device)
         for sub_task in self.params['sub_task_promot']:
             task_text_token = clip.tokenize(sub_task).to(self.device)
@@ -251,6 +252,7 @@ class FewDemoPolicy:
                     break
                 if episode_step + 1 == self.env.all_task_max_num:
                     break
+                episode_step += 1
                 self.video.record(self.env)
                 episode_reward += reward
             num_successes += episode_success

@@ -3,8 +3,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import clip
-
-import agent_policy.few_shot_RL.policy_utils
+import os
+import agent_policy.few_shot_RL.policy_utils as policy_utils
 from agent_policy.few_shot_RL.encoder import make_encoder
 from agent_policy.few_shot_RL.data_augs import random_crop, center_crop, no_aug, batch_center_crop
 
@@ -764,17 +764,20 @@ class DINOE2CSacAgent(RadSacAgent):
         return dino_emb
     def update(self, replay_buffer, L, step, demo_density=None, task_text=None):
         if self.e2c is None:
-            from e2c import MLPE2C
-
+            from agent_policy.few_shot_RL.e2c import MLPE2C
+            base_path = os.path.dirname(os.path.realpath(__file__))
+            model_path = os.path.join(base_path, "../../pre_train/dinov2")
+            model_pth_path = os.path.join(base_path, "../../pre_train/dinov2_vits14.pth")
+            self.dino = torch.hub.load(model_path, 'dinov2_vits14', source='local', pretrained=False).to(self.device)
             self.e2c = MLPE2C(
                 obs_shape=(384,),
                 action_dim=self.action_shape[0],
                 z_dimension=16,
                 crop_shape=None,
             ).to(self.device)
-            self.dino = torch.hub.load(
-                "facebookresearch/dinov2", "dinov2_vits14_reg"
-            ).to(self.device)
+            # self.dino = torch.hub.load(
+            #     "facebookresearch/dinov2", "dinov2_vits14_reg"
+            # ).to(self.device)
             self.e2c_optimizer = torch.optim.Adam(self.e2c.parameters(), lr=1e-4)
 
         if step % 300 == 0 and self.p_reward != 0:

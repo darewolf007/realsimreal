@@ -69,6 +69,5 @@ class mink_ik:
             pos_achieved = np.linalg.norm(err[:3]) <= self.pos_threshold
             ori_achieved = np.linalg.norm(err[3:]) <= self.ori_threshold
             if pos_achieved and ori_achieved:
-                print("err", err)
                 break
         return self.configuration.q

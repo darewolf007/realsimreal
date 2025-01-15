@@ -4,8 +4,8 @@ import torch.nn.functional
 import numpy as np
 from torch import nn
 from collections import OrderedDict
-from utils import create_mlp
-from encoder import tie_weights
+from .policy_utils import create_mlp
+from .encoder import tie_weights
 
 
 class E2CDecoder(nn.Module):
