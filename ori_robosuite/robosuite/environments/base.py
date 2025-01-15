@@ -267,22 +267,22 @@ class MujocoEnv(metaclass=EnvMeta):
         if self.renderer == "mjviewer":
             self._destroy_viewer()
 
-        if self.hard_reset and not self.deterministic_reset:
-            if self.renderer == "mujoco":
-                self._destroy_viewer()
-                self._destroy_sim()
-            self._load_model()
-            self._initialize_sim()
-        # Else, we only reset the sim internally
-        else:
-            self.sim.reset()
-
+        # if self.hard_reset and not self.deterministic_reset:
+        #     if self.renderer == "mujoco":
+        #         self._destroy_viewer()
+        #         self._destroy_sim()
+        #     self._load_model()
+        #     self._initialize_sim()
+        # # Else, we only reset the sim internally
+        # else:
+        #     self.sim.reset()
+        self.sim.reset()
         # Reset necessary robosuite-centric variables
         self._reset_internal()
         self.sim.forward()
         # Setup observables, reloading if
         self._obs_cache = {}
-        self._reset_observables()
+        # self._reset_observables()
 
         # Make sure that all sites are toggled OFF by default
         self.visualize(vis_settings={vis: False for vis in self._visualizations})

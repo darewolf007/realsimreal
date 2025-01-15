@@ -5,7 +5,6 @@ import pickle
 import torch
 import numpy as np
 import gymnasium as gym
-import matplotlib.pyplot as plt
 from utils.data_convert_pt import convert_pickles_to_pt
 from utils.image_util import resize_image, save_image_pkl
 from simple_sim.real_to_simulation import RealInSimulation
@@ -16,6 +15,7 @@ class PourSimulation(RealInSimulation):
     def __init__(self, robot, env_info, has_renderer, *args, **kwargs):
         super().__init__(robot, env_info, has_renderer, *args, **kwargs)
         self.grasp_flag = False
+        self.task_data_path = "/home/haowen/hw_mine/Real_Sim_Real/experiments/Pour_can_into_cup/promot_data/all"
         if env_info['use_joint_controller']:
             self.action_space = gym.spaces.Box(low=-env_info['max_action'], high=env_info['max_action'], shape=(self.env.robots[0].dof,), dtype=float)
         else:
@@ -25,7 +25,7 @@ class PourSimulation(RealInSimulation):
         action[:7] = np.clip(action[:7], -self.env_info['max_action'], self.env_info['max_action'])
         action[-1] = 1 if action[-1] > 0 else -1
         reward = self.update_reward(action)
-        next_observation, _, _, info = super().multi_step(action, use_delta, use_joint_controller)
+        next_observation, _, _, info = super().multi_step(action, use_delta, use_joint_controller, is_collect=True)
         # obs = next_observation['crop_sceneview_image']
         obs = resize_image(next_observation['crop_sceneview_image'], 1/6)
         obs = np.transpose(obs, (2, 0, 1))
@@ -35,19 +35,19 @@ class PourSimulation(RealInSimulation):
         return obs, reward, False, info
     
     def update_reward(self, action):
-        # if not self.grasp_flag and (self.last_action is not None and self.last_action[-1] == -1 and action[-1] == 1):
-        #     print("in update reward")
-        #     self.grasp_flag = self.is_grasp(self.last_observation)
-        #     if self.grasp_flag:
-        #         return 100
+        if not self.grasp_flag and (self.last_action is not None and self.last_action[-1] == -1 and action[-1] == 1):
+            print("in update reward")
+            self.grasp_flag = self.is_grasp(self.last_observation)
+            if self.grasp_flag:
+                return 100
         return -1
 
     def update_done(self, next_observation):
-        # if self.grasp_flag and (self.all_task_max_num - self.all_task_step_num < 30):
-        #     if self.all_task_step_num % 10 == 0:
-        #         print("in update done")
-        #         done = self.is_done(next_observation)
-        #         return done
+        if self.grasp_flag and (self.all_task_max_num - self.all_task_step_num < 30):
+            if self.all_task_step_num % 10 == 0:
+                print("in update done")
+                done = self.is_done(next_observation)
+                return done
         return False
 
     def is_done(self, observations):
@@ -61,7 +61,6 @@ class PourSimulation(RealInSimulation):
         done_flag = ask_pour_subtask(image_dict, moving_obj, target_obj)
         if self.env_info['save_online_image']:
             image_dict['result'] = done_flag
-            image_dict['obs_view'] = resize_image(observations['crop_sceneview_image'], 1/6)
             save_image_pkl(image_dict, self.env_info['online_data_save_path'] + "/done/", True)
         return done_flag
 
@@ -143,7 +142,7 @@ def set_params():
     "task_name": task_name,
     "sub_task_promot": [subtask_1, subtask_2],
     "replay_buffer_capacity": 100000,
-    "replay_buffer_load_dir": "/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/pt_data",
+    "replay_buffer_load_dir": replay_data_save_path + "pt_data",
     "replay_buffer_keep_loaded": True,
     "pretrain_mode": None,
     "pre_transform_image_size": 128,
@@ -206,7 +205,7 @@ def trainer():
                         env_info,
                         has_renderer=env_info['has_renderer'],
                         has_offscreen_renderer=True,
-                        render_camera=env_info['camera_names'][3],
+                        render_camera=env_info['camera_names'][0],
                         ignore_done=True,
                         use_camera_obs=True,
                         camera_depths=env_info['camera_depths'],
@@ -219,33 +218,34 @@ def trainer():
     policy.train()
 
 if __name__ == "__main__":
-    trainer()
-    # env_info, policy_params = set_params()
-    # env = PourSimulation("UR5e",
-    #                     env_info,
-    #                     has_renderer=env_info['has_renderer'],
-    #                     has_offscreen_renderer=True,
-    #                     render_camera=env_info['camera_names'][3],
-    #                     ignore_done=True,
-    #                     use_camera_obs=True,
-    #                     camera_depths=env_info['camera_depths'],
-    #                     control_freq=env_info['control_freq'],
-    #                     renderer="mjviewer",
-    #                     camera_heights=env_info['camera_heights'],
-    #                     camera_widths=env_info['camera_widths'],
-    #                     camera_names=env_info['camera_names'],)
-    # traj_path = os.path.join("/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/test/data")
-    # files = sorted(os.listdir(traj_path), key=lambda x: int(x.split(".")[0]))
-    # env.reset()
-    # for file in files:
-    #     if file.endswith(".pkl"):
-    #         file_path = os.path.join(traj_path, file)
-    #         with open(file_path, "rb") as f:
-    #             data = pickle.load(f)
-    #             action = data['actions']
-    #             obs, reward, done, info = env.step(action)
-    #             print("reward", reward)
-    #             print("done", done)
-    #             print("info", info)
-    # env.close()
+    # trainer()
+    env_info, policy_params = set_params()
+    env = PourSimulation("UR5e",
+                        env_info,
+                        has_renderer=env_info['has_renderer'],
+                        has_offscreen_renderer=True,
+                        render_camera=env_info['camera_names'][0],
+                        ignore_done=True,
+                        use_camera_obs=True,
+                        camera_depths=env_info['camera_depths'],
+                        control_freq=env_info['control_freq'],
+                        renderer="mjviewer",
+                        camera_heights=env_info['camera_heights'],
+                        camera_widths=env_info['camera_widths'],
+                        camera_names=env_info['camera_names'],)
+    traj_path = os.path.join("/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/test/data")
+    files = sorted(os.listdir(traj_path), key=lambda x: int(x.split(".")[0]))
+    env.reset()
+    for file in files:
+        if file.endswith(".pkl"):
+            file_path = os.path.join(traj_path, file)
+            with open(file_path, "rb") as f:
+                data = pickle.load(f)
+                action = data['actions']
+                obs, reward, done, info = env.step(action)
+                print("reward", reward)
+                print("done", done)
+                print("info", info)
+    env.close()
+
     

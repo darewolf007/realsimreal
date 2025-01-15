@@ -5,7 +5,6 @@ import pickle
 import numpy as np
 import sys
 sys.path.insert(0, os.getcwd())
-import matplotlib.pyplot as plt
 import robosuite.utils.camera_utils as CU
 from simple_sim.base_env import SimpleEnv
 from simple_sim.robotic_ik import mink_ik
@@ -28,13 +27,12 @@ class RealInSimulation:
         self.sub_task_min_num = 40
         self.sub_task_max_num = 100
         self.all_task_step_num = 0 
-        self.all_task_max_num = 5
+        self.all_task_max_num = 200
         self.init_scene_xmlobj_pose()
         self.init_scene_camera_pose()
         self.init_motion_planning()
         self.env = SimpleEnv(robot, env_info, has_renderer = has_renderer, *args, **kwargs)
         self.init_invese_kinematics()
-        self.reset()
 
     def init_subtask_info(self):
         for subtask_obj in self.env_info['subtask_object_info']:
@@ -129,15 +127,14 @@ class RealInSimulation:
     def pre_process_obs_image(self, observations, target_obj, step, is_collect = False, is_crop = True):
         new_observations = {}
         for camera_name in self.env_info['camera_names']:
-            image = observations[camera_name + "_image"]
-            image = cv2.flip(image, 0)
-            corrected_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-            new_observations[camera_name + "_image"] = corrected_image
+            image = observations[camera_name + "_image"][..., ::-1]
+            image = np.flip(image, axis=0)
+            new_observations[camera_name + "_image"] = image
             if is_collect:
-                cv2.imwrite(self.task_data_path + '/rgb_' + camera_name + "/" + str(step) + ".png", corrected_image)
+                cv2.imwrite(self.task_data_path + '/rgb_' + camera_name + "/" + str(step) + ".png", image)
         if self.env_info['camera_depths']:
-            sceneview_depth_image = observations['sceneview_depth']
-            sceneview_depth_image = cv2.flip(sceneview_depth_image, 0)
+            sceneview_depth_image = observations['sceneview_depth'][..., ::-1]
+            sceneview_depth_image = np.flip(sceneview_depth_image, axis=0)
             depth_map = get_real_depth_map(sim=self.env.sim, depth_map=sceneview_depth_image)
             processed_depth_map = np.clip(depth_map, 0.0, 3.0)
             new_observations['sceneview_depth'] = processed_depth_map
@@ -163,8 +160,6 @@ class RealInSimulation:
             if is_collect:
                 cv2.imwrite(self.task_data_path + '/crop_' + "sceneview" + "/" + str(step) + ".png", crop_sceneview_image)
         return new_observations
-        # plt.imshow(new_image)
-        # plt.show()
         # print("now", self.env.sim.data.get_site_xpos('robot0_attachment_site'))
         # print("gripperend", self.env.sim.data.get_site_xpos('gripper0_right_grip_site'))
         # print("gripper1", self.env.sim.data.get_site_xpos('gripper0_right_ft_frame'))
@@ -224,6 +219,19 @@ class RealInSimulation:
         # self.env_info['robot_init_qpos'] = np.load(self.env_info['data_path'] + "joint_" + str(begin_step) + ".npy")
         # self.max_reward = 1
         # use_joint_controller=False,
+        if is_collect:
+            replay_data_save_path = self.env_info['replay_data_save_path']
+            count = sum(os.path.isdir(os.path.join(replay_data_save_path, name)) for name in os.listdir(replay_data_save_path))
+            self.task_data_path = replay_data_save_path + self.env_info['task_name'] + str(count +1)
+            os.mkdir(self.task_data_path)
+            for camera_name in self.env_info['camera_names']:
+                os.mkdir(self.task_data_path + '/rgb_' + camera_name)
+                if self.env_info['camera_depths'] and camera_name == "sceneview":
+                    os.mkdir(self.task_data_path + '/depth_' + camera_name)
+                    os.mkdir(self.task_data_path + '/crop_' + camera_name)
+            self.task_step_data_path = self.task_data_path + '/data/'
+            os.mkdir(self.task_step_data_path)
+
         for play_time in range(self.max_reward):
             print("update joint simulation xml obj pose")
             end_effector_action= []
@@ -261,7 +269,7 @@ class RealInSimulation:
                 current_end_xquat = self.env.sim.data.get_site_xmat('robot0_attachment_site').copy()
                 current_end_xquat = R.from_matrix(current_end_xquat).as_quat()
                 current_end_xquat = current_end_xquat[[3, 0, 1, 2]]
-                observations, reward, done, info = self.multi_step(action, use_delta=False, use_joint_controller=use_joint_controller, step_num=2)
+                observations, reward, done, info = self.multi_step(action, use_delta=False, use_joint_controller=use_joint_controller, step_num=2, is_collect=False)
                 end_xpos = self.env.sim.data.get_site_xpos('robot0_attachment_site').copy()
                 end_quat = self.env.sim.data.get_site_xmat('robot0_attachment_site').copy()
                 end_quat = R.from_matrix(end_quat).as_quat()
@@ -289,19 +297,7 @@ class RealInSimulation:
                     next_observations, reward, done, info = self.multi_step(action, use_delta=True, use_joint_controller=False, step_num=3)
                     if self.has_renderer:
                         self.env.render()
-        np.save(self.env_info['obj_info']['poses'], self.env_info['replay_data_save_path'] + self.env_info['task_name'] +"obj_pose.npy")
-        if is_collect:
-            replay_data_save_path = self.env_info['replay_data_save_path']
-            count = sum(os.path.isdir(os.path.join(replay_data_save_path, name)) for name in os.listdir(replay_data_save_path))
-            self.task_data_path = replay_data_save_path + self.env_info['task_name'] + str(count +1)
-            os.mkdir(self.task_data_path)
-            for camera_name in self.env_info['camera_names']:
-                os.mkdir(self.task_data_path + '/rgb_' + camera_name)
-                if self.env_info['camera_depths'] and camera_name == "sceneview":
-                    os.mkdir(self.task_data_path + '/depth_' + camera_name)
-                    os.mkdir(self.task_data_path + '/crop_' + camera_name)
-            self.task_step_data_path = self.task_data_path + '/data/'
-            os.mkdir(self.task_step_data_path)
+        np.save(self.env_info['replay_data_save_path'] + self.env_info['task_name'] +"obj_pose.npy", self.env_info['obj_info']['poses'])
         if use_joint_controller:
             print("collecting simulation data")
             now_observation = self.reset(update_env_info = True)
@@ -340,10 +336,10 @@ class RealInSimulation:
         self.env.close()
     
     def reset(self, update_env_info = False):
+        self.env.reset()
         self.env.sim.model.opt.integrator = 2
         if update_env_info:
             self.env.update_env_info(self.env_info)
-        observations = self.env.reset()
         self.last_action = None
         self.sub_task_idx = 0
         self.in_subtask = False
@@ -500,10 +496,10 @@ if __name__ == "__main__":
     env_info['hand_eye'] = handeye_T
     env_info['obj_info'] = scene_dict
     env_info['use_gravity'] = True
-    env_info['data_path'] = "/home/haowen/hw_mine/Real_Sim_Real/data/real_data/pour_all/7/traj/"
+    env_info['data_path'] = "/home/haowen/hw_mine/Real_Sim_Real/data/real_data/pour_all/8/traj/"
     # env_info['base_choose'] = "camera"
     env_info['base_choose'] = "robot"
-    robot_init_pose = np.load(env_info['data_path'] + "joint_2.npy")
+    robot_init_pose = np.load(env_info['data_path'] + "joint_18.npy")
     robot_init_pose[0], robot_init_pose[2] = robot_init_pose[2], robot_init_pose[0]
     env_info['robot_init_qpos'] = robot_init_pose
     env_info['max_reward'] = 1
@@ -515,14 +511,14 @@ if __name__ == "__main__":
     env_info['camera_names'] = ["sceneview", "birdview", "frontview", "rightview"]
     env_info['has_renderer'] = True
     env_info['control_freq'] = 20
-    env_info['init_noise'] = False
-    env_info['init_translation_noise_bounds'] = (-0.03, 0.003)
-    env_info['init_rotation_noise_bounds'] = (-5, 5)
+    env_info['init_noise'] = True
+    env_info['init_translation_noise_bounds'] = (-0.3, 0.3)
+    env_info['init_rotation_noise_bounds'] = (-50, 50)
     test_real = RealInSimulation("UR5e",
                                  env_info,
                                  has_renderer=env_info['has_renderer'],
                                  has_offscreen_renderer=True,
-                                 render_camera=env_info['camera_names'][0],
+                                 render_camera="sceneview",
                                  ignore_done=True,
                                  use_camera_obs=True,
                                  camera_depths=env_info['camera_depths'],
@@ -532,4 +528,9 @@ if __name__ == "__main__":
                                  camera_widths=env_info['camera_widths'],
                                  camera_names=env_info['camera_names'],)
     test_real.reset()
-    test_real.replay_demonstration(use_joint_controller= True, is_collect=True, begin_step=2)
+    # while(True):
+    #     observations,_,_,_ = test_real.env.step(np.array([0, 0, 0, 0, 0, 0, 1]))
+    #     import matplotlib.pyplot as plt
+    #     plt.imshow(observations['frontview_image'])
+    #     plt.show()
+    test_real.replay_demonstration(use_joint_controller= True, is_collect=True, begin_step=18)
