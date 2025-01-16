@@ -7,7 +7,7 @@ import PIL.Image as Image
 os.environ['ALL_PROXY'] = ''
 os.environ['all_proxy'] = ''
 
-def ask_online(image_data, prompt, other_image = None, model_choice = "claude-3-5-sonnet-20240620", max_retries=20):
+def ask_online(image_data, prompt, other_image = None, model_choice = "claude-3-5-sonnet-20240620", max_retries=5):
     client = OpenAI(
         api_key="sk-QyHM6JgtRWhaM33UHyx7ovfhSzXn07GdO4klT7nl4CaR6XzK",
         base_url="https://api.aikeji.vip/v1"
@@ -109,10 +109,9 @@ def ask_grasp_subtask(image_dict, moving_obj = "", target_obj = "can"):
         else:
             image_state = ask_online(image_data, promot_2_1)
         image_state_list.append(int(image_state))
-    if np.array(image_state_list).sum() >= 2:
-        return True
-    else:
-        return False
+        if image_state == "0":
+            return False
+    return True
     
 def ask_pour_subtask(image_dict, moving_obj = "", target_obj = ""):
     promot_1 = f"Which of these two perspectives better shows the tilt angle between the {moving_obj} and the {target_obj} in the vertical direction relative to the table? Directly output 0 or 1."
