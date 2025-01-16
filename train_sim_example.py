@@ -3,6 +3,7 @@ import time
 import cv2
 import pickle
 import torch
+import argparse
 import numpy as np
 import gymnasium as gym
 from utils.data_convert_pt import convert_pickles_to_pt
@@ -10,6 +11,16 @@ from utils.image_util import resize_image, save_image_pkl
 from simple_sim.real_to_simulation import RealInSimulation
 from reward_model.online_reward_model import ask_grasp_subtask, ask_pour_subtask
 from agent_policy.few_shot_RL.policy import FewDemoPolicy
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--task_name", default="Pour_can_into_cup")
+    parser.add_argument("--is_crop", default=False)
+    parser.add_argument("--crop_image_size", default=(768, 768))
+    parser.add_argument("--camera_heights", default=[1536, 1536, 1536, 1536])
+    parser.add_argument("--camera_widths", default=[1536, 2048, 2048, 2048])
+    args = parser.parse_args()
+    return args
 
 class PourSimulation(RealInSimulation):
     def __init__(self, robot, env_info, has_renderer, *args, **kwargs):
@@ -29,10 +40,11 @@ class PourSimulation(RealInSimulation):
         action[-1] = 1 if action[-1] > 0 else -1
         reward = self.update_reward(action)
         next_observation, _, _, info = super().multi_step(action, use_delta, use_joint_controller, is_collect=True, step_num=1)
+        print(self.env_info['is_crop'])
         if self.env_info['is_crop']:
-            obs = resize_image(next_observation['crop_sceneview_image'], 1/12)
+            obs = resize_image(next_observation['crop_sceneview_image'], 1/6)
         else:
-            obs = resize_image(next_observation['sceneview_image'], 1/6)
+            obs = resize_image(next_observation['sceneview_image'], 1/12)
         obs = np.transpose(obs, (2, 0, 1))
         done = self.update_done(next_observation)
         if done:
@@ -100,8 +112,8 @@ class PourSimulation(RealInSimulation):
         obs = np.transpose(obs, (2, 0, 1))
         return obs
 
-def set_params():
-    task_name = "Pour_can_into_cup"
+def set_params(args):
+    task_name = args.task_name
     subtask_1 = "Pick up the can"
     subtask_2 = "Pour the can into the cup"
     subtask_1_obj = ["gripper", "can"]
@@ -128,7 +140,7 @@ def set_params():
     env_info['hand_eye_path'] = handeye_T_path
     env_info['obj_info'] = scene_dict
     env_info['use_gravity'] = True
-    env_info['is_crop'] = True
+    env_info['is_crop'] = args.is_crop
     env_info['data_path'] = None
     env_info['save_online_image'] = True
     # env_info['base_choose'] = "camera"
@@ -136,9 +148,9 @@ def set_params():
     env_info['robot_init_qpos'] = robot_init_pose
     env_info['max_reward'] = 1
     env_info['camera_depths'] = True
-    env_info['crop_image_size'] = (768, 768)
-    env_info['camera_heights'] = [1536, 1536, 1536, 1536]
-    env_info['camera_widths'] = [2048, 2048, 2048, 2048]
+    env_info['crop_image_size'] = args.crop_image_size
+    env_info['camera_heights'] = args.camera_heights
+    env_info['camera_widths'] = args.camera_widths
     env_info['camera_names'] = ["sceneview", "birdview", "frontview", "rightview"]
     env_info['has_renderer'] = False
     env_info['control_freq'] = 20
@@ -147,14 +159,16 @@ def set_params():
     env_info['init_noise'] = True
     env_info['init_translation_noise_bounds'] = (-0.01, 0.001)
     env_info['init_rotation_noise_bounds'] = (-5, 5)
-    
-
+    if env_info['is_crop']:
+        replay_buffer_load_dir = replay_data_save_path + "crop_pt_data"
+    else:
+        replay_buffer_load_dir = replay_data_save_path + "no_crop_pt_data"
     policy_params = {
     "work_dir": work_dir,
     "task_name": task_name,
     "sub_task_promot": [subtask_1, subtask_2],
     "replay_buffer_capacity": 100000,
-    "replay_buffer_load_dir": replay_data_save_path + "pt_data",
+    "replay_buffer_load_dir": replay_buffer_load_dir,
     "replay_buffer_keep_loaded": True,
     "pretrain_mode": None,
     "pre_transform_image_size": 128,
@@ -211,8 +225,8 @@ def set_params():
     }
     return env_info, policy_params
 
-def trainer():
-    env_info, policy_params = set_params()
+def trainer(args):
+    env_info, policy_params = set_params(args)
     env = PourSimulation("UR5e",
                         env_info,
                         has_renderer=env_info['has_renderer'],
@@ -230,35 +244,39 @@ def trainer():
     policy.train()
 
 if __name__ == "__main__":
+    args = parse_args()
     # convert_pickles_to_pt()
-    # trainer()
-    env_info, policy_params = set_params()
-    env = PourSimulation("UR5e",
-                        env_info,
-                        has_renderer=env_info['has_renderer'],
-                        has_offscreen_renderer=True,
-                        render_camera=env_info['camera_names'][3],
-                        ignore_done=True,
-                        use_camera_obs=True,
-                        camera_depths=env_info['camera_depths'],
-                        control_freq=env_info['control_freq'],
-                        renderer="mjviewer",
-                        camera_heights=env_info['camera_heights'],
-                        camera_widths=env_info['camera_widths'],
-                        camera_names=env_info['camera_names'],)
-    traj_path = os.path.join("/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/pour_can_new/Pour can into a cup9/data")
-    files = sorted(os.listdir(traj_path), key=lambda x: int(x.split(".")[0]))
-    env.reset()
-    for file in files:
-        if file.endswith(".pkl"):
-            file_path = os.path.join(traj_path, file)
-            with open(file_path, "rb") as f:
-                data = pickle.load(f)
-                action = data['actions']
-                obs, reward, done, info = env.step(action)
-                print("reward", reward)
-                print("done", done)
-                print("info", info)
-    env.close()
+    trainer(args)
+    # env_info, policy_params = set_params(args)
+    # env = PourSimulation("UR5e",
+    #                     env_info,
+    #                     has_renderer=env_info['has_renderer'],
+    #                     has_offscreen_renderer=True,
+    #                     render_camera=env_info['camera_names'][3],
+    #                     ignore_done=True,
+    #                     use_camera_obs=True,
+    #                     camera_depths=env_info['camera_depths'],
+    #                     control_freq=env_info['control_freq'],
+    #                     renderer="mjviewer",
+    #                     camera_heights=env_info['camera_heights'],
+    #                     camera_widths=env_info['camera_widths'],
+    #                     camera_names=env_info['camera_names'],)
+    # traj_path = os.path.join("/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/pour_can_new/Pour can into a cup9/data")
+    # files = sorted(os.listdir(traj_path), key=lambda x: int(x.split(".")[0]))
+    # env.reset()
+    # for file in files:
+    #     if file.endswith(".pkl"):
+    #         file_path = os.path.join(traj_path, file)
+    #         with open(file_path, "rb") as f:
+    #             data = pickle.load(f)
+    #             action = data['actions']
+    #             obs, reward, done, info = env.step(action)
+    #             print(obs.shape)
+    #             cv2.imshow("test", np.transpose(obs, (1, 2, 0)))
+    #             cv2.waitKey(1)
+    #             print("reward", reward)
+    #             print("done", done)
+    #             print("info", info)
+    # env.close()
 
     

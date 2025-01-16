@@ -27,8 +27,8 @@ def convert_pickles_to_pt(data_dir, output_path):
                 file_path = os.path.join(traj_path, file)
                 with open(file_path, "rb") as f:
                     data = pickle.load(f)
-                    all_obses.append(np.transpose(resize_image(data['obses'], 1/6), (2, 0, 1)))
-                    all_next_obses.append(np.transpose(resize_image(data['next_obses'], 1/6), (2, 0, 1)))
+                    all_obses.append(np.transpose(resize_image(data['obses'], 1/12), (2, 0, 1)))
+                    all_next_obses.append(np.transpose(resize_image(data['next_obses'], 1/12), (2, 0, 1)))
                     all_actions.append(data['actions'])
                     if data['rewards'] == 0:
                         all_rewards.append(-1)
