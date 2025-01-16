@@ -82,7 +82,14 @@ def crop_image(image, center, size):
     y1 = max(0, y - height // 2)
     x2 = min(image.shape[1], x + width // 2)
     y2 = min(image.shape[0], y + height // 2)
-    cropped_image = image[y1:y2, x1:x2]
+    cropped_width = x2 - x1
+    cropped_height = y2 - y1
+    cropped_image = np.zeros((height, width, image.shape[2]), dtype=image.dtype)
+    paste_x1 = (width - cropped_width) // 2
+    paste_y1 = (height - cropped_height) // 2
+    paste_x2 = paste_x1 + cropped_width
+    paste_y2 = paste_y1 + cropped_height
+    cropped_image[paste_y1:paste_y2, paste_x1:paste_x2] = image[y1:y2, x1:x2]
     return cropped_image
 
 def get_7Dof_pose(matrix_T):

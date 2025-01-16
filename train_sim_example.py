@@ -98,7 +98,7 @@ def set_params():
     work_dir = os.path.join(base_path, "./experiments/" + task_name)
     real_data_dir = os.path.join(base_path, "./data/sim_data/" + task_name)
     handeye_T_path = os.path.join(base_path, "./configs/ur5_kinect_handeyecalibration_eye_on_base.yaml")
-    replay_data_save_path = os.path.join(base_path, "../data/sim_data/")
+    replay_data_save_path = os.path.join(base_path, "./data/sim_data/")
     robot_init_pose = np.array([-1.28626711, -1.91235318,  2.03487999, -1.58658661, -1.50936824, -0.32230741])
     env_info = {}
     # env_info['obj_pose_base'] = "camera"
@@ -218,34 +218,7 @@ def trainer():
     policy.train()
 
 if __name__ == "__main__":
-    # trainer()
-    env_info, policy_params = set_params()
-    env = PourSimulation("UR5e",
-                        env_info,
-                        has_renderer=env_info['has_renderer'],
-                        has_offscreen_renderer=True,
-                        render_camera=env_info['camera_names'][0],
-                        ignore_done=True,
-                        use_camera_obs=True,
-                        camera_depths=env_info['camera_depths'],
-                        control_freq=env_info['control_freq'],
-                        renderer="mjviewer",
-                        camera_heights=env_info['camera_heights'],
-                        camera_widths=env_info['camera_widths'],
-                        camera_names=env_info['camera_names'],)
-    traj_path = os.path.join("/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/test/data")
-    files = sorted(os.listdir(traj_path), key=lambda x: int(x.split(".")[0]))
-    env.reset()
-    for file in files:
-        if file.endswith(".pkl"):
-            file_path = os.path.join(traj_path, file)
-            with open(file_path, "rb") as f:
-                data = pickle.load(f)
-                action = data['actions']
-                obs, reward, done, info = env.step(action)
-                print("reward", reward)
-                print("done", done)
-                print("info", info)
-    env.close()
+    # convert_pickles_to_pt()
+    trainer()
 
     

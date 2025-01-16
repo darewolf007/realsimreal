@@ -99,5 +99,5 @@ def convert_real_to_pt(data_dir, output_path):
 
 if __name__ == "__main__":
     data_dir = "/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/pour_can_new"
-    output_path = "/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/" 
+    output_path = "/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/pt_data/" 
     convert_pickles_to_pt(data_dir, output_path)

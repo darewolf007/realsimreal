@@ -512,7 +512,7 @@ if __name__ == "__main__":
     env_info['has_renderer'] = True
     env_info['control_freq'] = 20
     env_info['init_noise'] = True
-    env_info['init_translation_noise_bounds'] = (-0.3, 0.3)
+    env_info['init_translation_noise_bounds'] = (-0.03, 0.03)
     env_info['init_rotation_noise_bounds'] = (-50, 50)
     test_real = RealInSimulation("UR5e",
                                  env_info,
@@ -529,8 +529,8 @@ if __name__ == "__main__":
                                  camera_names=env_info['camera_names'],)
     test_real.reset()
     # while(True):
-    #     observations,_,_,_ = test_real.env.step(np.array([0, 0, 0, 0, 0, 0, 1]))
+    #     observations,_,_,_ = test_real.multi_step(np.array([0, 0, 0, 0, 0, 0, 1]))
     #     import matplotlib.pyplot as plt
-    #     plt.imshow(observations['frontview_image'])
+    #     plt.imshow(observations['crop_sceneview_image'])
     #     plt.show()
     test_real.replay_demonstration(use_joint_controller= True, is_collect=True, begin_step=18)
