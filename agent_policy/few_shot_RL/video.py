@@ -36,4 +36,4 @@ class VideoRecorder(object):
     def save(self, file_name):
         if self.enabled:
             path = os.path.join(self.dir_name, file_name)
-            imageio.mimsave(path, self.frames, fps=self.fps)
+            imageio.mimsave(path, self.frames, fps=self.fps, codec="libx264")

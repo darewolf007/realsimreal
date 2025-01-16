@@ -24,10 +24,10 @@ class RealInSimulation:
         self.sub_task_moving_obj = []
         self.sub_task_idx = 0
         self.sub_task_step_num = 0
-        self.sub_task_min_num = 40
-        self.sub_task_max_num = 100
+        self.sub_task_min_num = 25
+        self.sub_task_max_num = 60
         self.all_task_step_num = 0 
-        self.all_task_max_num = 200
+        self.all_task_max_num = 65
         self.init_scene_xmlobj_pose()
         self.init_scene_camera_pose()
         self.init_motion_planning()
@@ -237,9 +237,6 @@ class RealInSimulation:
             end_effector_action= []
             self.reset(update_env_info = True)
             for i in range(begin_step, file_num + 1):
-                subtask_id = self.get_subtask()
-                if subtask_id != -1:
-                    self.sub_task_step_num += 1
                 collect_data = np.load(self.env_info['data_path'] + "traj_" + str(i) + ".npy")
                 joint_data = np.load(self.env_info['data_path'] + "joint_" + str(i) + ".npy")
                 joint_data[0], joint_data[2] = joint_data[2], joint_data[0]
@@ -279,6 +276,11 @@ class RealInSimulation:
                 end_effector_action.append(np.concatenate([delta_end_xpos, delta_end_quat,np.array([gripper_data])]))
                 if self.has_renderer:
                     self.env.render()
+                print("self.sub_task_step_num", self.sub_task_step_num)
+                print("sub id", self.sub_task_idx)
+                if self.all_task_step_num == self.sub_task_max_num:
+                    print(self.all_task_step_num)
+                    break
                 # break
         if use_joint_controller:
             print("update endeffector simulation xml obj pose")
@@ -286,9 +288,6 @@ class RealInSimulation:
                 now_observation = self.reset(update_env_info = True)
                 for step in range(len(end_effector_action)):
                     step_data = {}
-                    subtask_id = self.get_subtask()
-                    if subtask_id != -1:
-                        self.sub_task_step_num += 1
                     action = end_effector_action[step]
                     if (self.last_action is not None and self.last_action[-1] != action[-1]):
                         self.refine_obj_pose()
@@ -304,9 +303,6 @@ class RealInSimulation:
             now_qpos = self.env.sim.data.qpos[:self.env.robots[0].dof].copy()
             for step in range(len(end_effector_action)):
                 step_data = {}
-                subtask_id = self.get_subtask()
-                if subtask_id != -1:
-                    self.sub_task_step_num += 1
                 action = end_effector_action[step]
                 if (self.last_action is not None and self.last_action[-1] == -1 and action[-1] == 1):
                     step_data["rewards"] = 100
@@ -315,12 +311,16 @@ class RealInSimulation:
                 next_observations, reward, done, info = self.multi_step(action, use_delta=True, use_joint_controller=False, step_num=3, is_collect = is_collect)
                 next_qpos = self.env.sim.data.qpos[:self.env.robots[0].dof].copy()
                 target_obj = self.env_info['subtask_object_info'][self.sub_task_idx][1]
-                step_data["obses"] = now_observation["crop_sceneview_image"]
-                step_data["next_obses"] = next_observations["crop_sceneview_image"]
+                if self.env_info['is_crop']:
+                    step_data["obses"] = now_observation["crop_sceneview_image"]
+                    step_data["next_obses"] = next_observations["crop_sceneview_image"]
+                else:
+                    step_data["obses"] = now_observation["sceneview_image"]
+                    step_data["next_obses"] = next_observations["sceneview_image"]
                 step_data["actions"] = action
                 step_data["now_qpos"] = now_qpos
                 step_data["next_qpos"] = next_qpos
-                step_data["subtask_id"] = subtask_id
+                step_data["subtask_id"] = info['subtask_id']
                 now_qpos = next_qpos
                 if step == len(end_effector_action)-1:
                     step_data["rewards"] = 100
@@ -331,7 +331,7 @@ class RealInSimulation:
                 if self.has_renderer:
                     self.env.render()
                 if is_collect:
-                    with open(self.task_step_data_path + str(step) + ".pkl", 'wb') as file:
+                    with open(self.task_step_data_path + str(step + 1) + ".pkl", 'wb') as file:
                         pickle.dump(step_data, file)
         self.env.close()
     
@@ -359,7 +359,7 @@ class RealInSimulation:
         self.last_observation = new_observation
         return new_observation
 
-    def is_in_subtask(self, threshold=0.15):
+    def is_in_subtask(self, threshold=0.1):
         moving_obj = self.sub_task_moving_obj[self.sub_task_idx]
         static_point_pos = self.sub_task_static_point[self.sub_task_idx]
         if moving_obj == "gripper":
@@ -373,7 +373,7 @@ class RealInSimulation:
         else:
             return False
         
-    def is_out_subtask(self, threshold=0.15):
+    def is_out_subtask(self, threshold=0.1):
         moving_obj = self.sub_task_moving_obj[self.sub_task_idx]
         static_point_pos = self.sub_task_static_point[self.sub_task_idx]
         if moving_obj == "gripper":
@@ -382,6 +382,7 @@ class RealInSimulation:
             site_name = moving_obj + "_up_site"
             object_site_pos = self.env.sim.data.get_site_xpos(site_name).copy()
         distance = np.linalg.norm(static_point_pos - object_site_pos)
+        print("distance", distance)
         if distance < threshold:
             return False
         else:
@@ -407,6 +408,7 @@ class RealInSimulation:
         return self.sub_task_idx
            
     def refine_obj_pose(self):
+        print("refine pose")
         moving_obj = self.sub_task_moving_obj[self.sub_task_idx]
         if moving_obj == "gripper":
             object_site_pos = self.env.sim.data.get_site_xpos('gripper0_right_grip_site').copy()
@@ -497,21 +499,22 @@ if __name__ == "__main__":
     env_info['obj_info'] = scene_dict
     env_info['use_gravity'] = True
     env_info['data_path'] = "/home/haowen/hw_mine/Real_Sim_Real/data/real_data/pour_all/8/traj/"
+    begin_step = 35
     # env_info['base_choose'] = "camera"
     env_info['base_choose'] = "robot"
-    robot_init_pose = np.load(env_info['data_path'] + "joint_18.npy")
+    robot_init_pose = np.load("/home/haowen/hw_mine/Real_Sim_Real/data/real_data/pour_all/8/traj/" + "joint_34.npy")
     robot_init_pose[0], robot_init_pose[2] = robot_init_pose[2], robot_init_pose[0]
     env_info['robot_init_qpos'] = robot_init_pose
     env_info['max_reward'] = 1
     env_info['camera_depths'] = True
-    env_info['is_crop'] = True
-    env_info['crop_image_size'] = (770, 770)
-    env_info['camera_heights'] = [1536, 1536, 1536, 1536]
-    env_info['camera_widths'] = [2048, 2048, 2048, 2048]
+    env_info['is_crop'] = False
+    env_info['crop_image_size'] = (768, 768)
+    env_info['camera_heights'] = [768*2, 1536, 1536, 1536]
+    env_info['camera_widths'] = [768*2, 2048, 2048, 2048]
     env_info['camera_names'] = ["sceneview", "birdview", "frontview", "rightview"]
     env_info['has_renderer'] = True
     env_info['control_freq'] = 20
-    env_info['init_noise'] = True
+    env_info['init_noise'] = False
     env_info['init_translation_noise_bounds'] = (-0.03, 0.03)
     env_info['init_rotation_noise_bounds'] = (-50, 50)
     test_real = RealInSimulation("UR5e",
@@ -533,4 +536,4 @@ if __name__ == "__main__":
     #     import matplotlib.pyplot as plt
     #     plt.imshow(observations['crop_sceneview_image'])
     #     plt.show()
-    test_real.replay_demonstration(use_joint_controller= True, is_collect=True, begin_step=18)
+    test_real.replay_demonstration(use_joint_controller= True, is_collect=True, begin_step=begin_step)
