@@ -246,6 +246,7 @@ class ReplayBuffer(Dataset):
             self.not_dones[start:end] = payload[4].reshape(-1, 1)
             self.idx = end
             self.keep_loaded_end = end
+        self.actions[:,:-1] *= 100
         self.demo_starts = np.load(os.path.join(save_dir, "demo_starts.npy"))
         self.demo_ends = np.load(os.path.join(save_dir, "demo_ends.npy"))
 

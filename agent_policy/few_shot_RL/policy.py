@@ -198,6 +198,8 @@ class FewDemoPolicy:
 
             # allow infinite bootstrap
             done_bool = 0 if episode_step + 1 == self.env.all_task_max_num else float(done)
+            if episode_step + 1 == self.env.all_task_max_num:
+                done = True
             episode_reward += reward
 
             replay_buffer.add(obs, action, reward, next_obs, done_bool)

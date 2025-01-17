@@ -17,8 +17,8 @@ def parse_args():
     parser.add_argument("--task_name", default="Pour_can_into_cup")
     parser.add_argument("--is_crop", default=False)
     parser.add_argument("--crop_image_size", default=(768, 768))
-    parser.add_argument("--camera_heights", default=[1536, 1536, 1536, 1536])
-    parser.add_argument("--camera_widths", default=[1536, 2048, 2048, 2048])
+    parser.add_argument("--camera_heights", type=int, nargs='+', default=[1536, 1536, 1536, 1536])
+    parser.add_argument("--camera_widths", type=int, nargs='+', default=[1536, 2048, 2048, 2048])
     args = parser.parse_args()
     return args
 
@@ -106,9 +106,9 @@ class PourSimulation(RealInSimulation):
         self.ask_grasp = False
         observation = super().reset()
         if self.env_info['is_crop']:
-            obs = resize_image(observation['crop_sceneview_image'], 1/12)
+            obs = resize_image(observation['crop_sceneview_image'], 1/6)
         else:
-            obs = resize_image(observation['sceneview_image'], 1/6)
+            obs = resize_image(observation['sceneview_image'], 1/12)
         obs = np.transpose(obs, (2, 0, 1))
         return obs
 

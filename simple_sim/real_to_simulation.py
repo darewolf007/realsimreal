@@ -531,9 +531,15 @@ if __name__ == "__main__":
                                  camera_widths=env_info['camera_widths'],
                                  camera_names=env_info['camera_names'],)
     test_real.reset()
-    # while(True):
-    #     observations,_,_,_ = test_real.multi_step(np.array([0, 0, 0, 0, 0, 0, 1]))
-    #     import matplotlib.pyplot as plt
-    #     plt.imshow(observations['crop_sceneview_image'])
-    #     plt.show()
+    while(True):
+        test_real.reset()
+        for _ in range(10):
+            observations,_,_,_ = test_real.multi_step(np.array([0, 0, 0, 0, 0, 0, 1]))
+        #     import cv2
+        #     cv2.imshow("sceneview", observations['sceneview_image'])
+        #     cv2.waitKey(2)
+        # cv2.destroyAllWindows()
+        # import matplotlib.pyplot as plt
+        # plt.imshow(observations['crop_sceneview_image'])
+        # plt.show()
     test_real.replay_demonstration(use_joint_controller= True, is_collect=True, begin_step=begin_step)
