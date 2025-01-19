@@ -27,13 +27,16 @@ def convert_pickles_to_pt(data_dir, output_path):
                 file_path = os.path.join(traj_path, file)
                 with open(file_path, "rb") as f:
                     data = pickle.load(f)
-                    all_obses.append(np.transpose(resize_image(data['obses'], 1/12), (2, 0, 1)))
-                    all_next_obses.append(np.transpose(resize_image(data['next_obses'], 1/12), (2, 0, 1)))
+                    all_obses.append(np.transpose(resize_image(data['obses'], 1/6), (2, 0, 1)))
+                    all_next_obses.append(np.transpose(resize_image(data['next_obses'], 1/6), (2, 0, 1)))
                     all_actions.append(data['actions'])
                     if data['rewards'] == 0:
                         all_rewards.append(-1)
                     else:
-                        all_rewards.append(data['rewards'])
+                        if not data['not_dones']:
+                            all_rewards.append(data['rewards'])
+                        else:
+                            all_rewards.append(-1)
                     all_not_dones.append(data['not_dones'])
                     all_subtask_id.append(data['subtask_id'])
                     all_now_qpos.append(data['now_qpos'])
@@ -98,6 +101,6 @@ def convert_real_to_pt(data_dir, output_path):
     np.save(os.path.join(output_path, "demo_starts.npy"), demo_ends)
 
 if __name__ == "__main__":
-    data_dir = "/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/pour_can_new"
-    output_path = "/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/pt_data/" 
+    data_dir = "/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/20_crop_pour_can_new"
+    output_path = "/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/20_crop_pt_data/" 
     convert_pickles_to_pt(data_dir, output_path)

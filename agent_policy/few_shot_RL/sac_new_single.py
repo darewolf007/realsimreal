@@ -768,16 +768,16 @@ class DINOE2CSacAgent(RadSacAgent):
             base_path = os.path.dirname(os.path.realpath(__file__))
             model_path = os.path.join(base_path, "../../pre_train/dinov2")
             model_pth_path = os.path.join(base_path, "../../pre_train/dinov2_vits14.pth")
-            self.dino = torch.hub.load(model_path, 'dinov2_vits14', source='local', pretrained=False).to(self.device)
+            # self.dino = torch.hub.load(model_path, 'dinov2_vits14', source='local').to(self.device)
             self.e2c = MLPE2C(
                 obs_shape=(384,),
                 action_dim=self.action_shape[0],
                 z_dimension=16,
                 crop_shape=None,
             ).to(self.device)
-            # self.dino = torch.hub.load(
-            #     "facebookresearch/dinov2", "dinov2_vits14_reg"
-            # ).to(self.device)
+            self.dino_ori = torch.hub.load(
+                "facebookresearch/dinov2", "dinov2_vits14_reg"
+            ).to(self.device)
             self.e2c_optimizer = torch.optim.Adam(self.e2c.parameters(), lr=1e-4)
 
         if step % 300 == 0 and self.p_reward != 0:

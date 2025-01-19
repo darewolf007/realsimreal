@@ -11,14 +11,15 @@ from utils.image_util import resize_image, save_image_pkl
 from simple_sim.real_to_simulation import RealInSimulation
 from reward_model.online_reward_model import ask_grasp_subtask, ask_pour_subtask
 from agent_policy.few_shot_RL.policy import FewDemoPolicy
+from pre_train.s3d.s3dg import S3D
 
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--task_name", default="Pour_can_into_cup")
-    parser.add_argument("--is_crop", default=False)
+    parser.add_argument("--is_crop", default=True)
     parser.add_argument("--crop_image_size", default=(768, 768))
     parser.add_argument("--camera_heights", type=int, nargs='+', default=[1536, 1536, 1536, 1536])
-    parser.add_argument("--camera_widths", type=int, nargs='+', default=[1536, 2048, 2048, 2048])
+    parser.add_argument("--camera_widths", type=int, nargs='+', default=[2048, 2048, 2048, 2048])
     args = parser.parse_args()
     return args
 
@@ -32,21 +33,71 @@ class PourSimulation(RealInSimulation):
         else:
             self.action_space = gym.spaces.Box(low=-env_info['max_action'], high=env_info['max_action'], shape=(8,), dtype=float)
         self.ask_grasp = False
+        self.last_frame = []
+        self.grasp_demo_embedding = []
+        self.done_demo_embedding = []
+        self.last_info = None
+        self.init_vido_embedding()
+        self.pre_process_pt()
+     
+    def pre_process_pt(self):
+        pt_data_path = self.env_info['replay_buffer_load_dir']
+        chunks = os.listdir(pt_data_path)
+        chunks = [c for c in chunks if c[-3:] == ".pt"]
+        chucks = sorted(chunks, key=lambda x: int(x.split("_")[0]))
+        path = os.path.join(pt_data_path, chucks[0])
+        payload = torch.load(path)
+        obses = payload[0]
+        actions = payload[2]
+        self.demo_starts = np.load(os.path.join(pt_data_path, "demo_starts.npy"))
+        self.demo_ends = np.load(os.path.join(pt_data_path, "demo_ends.npy"))
+        for i in range(len(self.demo_starts)):
+            start = self.demo_starts[i]
+            end = self.demo_ends[i]
+            if end % 2 != 0:
+                end -= 1
+            frames = obses[start:end]
+            frames = frames[None, :,:,:,:]
+            video = frames.permute(0, 2, 1, 3, 4)
+            video_output = self.net(video.float())
+            target_embedding = video_output['video_embedding']
+            self.done_demo_embedding.append(target_embedding)
+        for i in range(len(self.demo_starts)):
+            start = self.demo_starts[i]
+            end = self.demo_ends[i]
+            action = actions[start:end, -1]
+            transition_indices = int(np.where((action[:-1] == -1) & (action[1:] == 1))[0])
+            if transition_indices % 2 != 0:
+                transition_indices -= 1
+            frames = obses[start:start+transition_indices]
+            frames = frames[None, :,:,:,:]
+            video = frames.permute(0, 2, 1, 3, 4)
+            video_output = self.net(video.float())
+            target_embedding = video_output['video_embedding']
+            self.grasp_demo_embedding.append(target_embedding)
+
+    def init_vido_embedding(self):
+        self.net = S3D('./pre_train/s3d/s3d_dict.npy', 512)
+        self.net.load_state_dict(torch.load('./pre_train/s3d/s3d_howto100m.pth'))
 
     def step(self, action, use_delta=True, use_joint_controller=False):
         print("last_action", self.last_action)
         print("action", action)
         action[:7] = np.clip(action[:7], -self.env_info['max_action'], self.env_info['max_action'])
         action[-1] = 1 if action[-1] > 0 else -1
-        reward = self.update_reward(action)
+        # reward = self.update_reward(action)
+        reward = self.is_grasp_from_sim(self.last_info, action)
         next_observation, _, _, info = super().multi_step(action, use_delta, use_joint_controller, is_collect=True, step_num=1)
+        self.last_info = info
         print(self.env_info['is_crop'])
         if self.env_info['is_crop']:
             obs = resize_image(next_observation['crop_sceneview_image'], 1/6)
         else:
             obs = resize_image(next_observation['sceneview_image'], 1/12)
         obs = np.transpose(obs, (2, 0, 1))
-        done = self.update_done(next_observation)
+        self.last_frame.append(obs)
+        done = self.is_grasp_done_from_sim(info, action)
+        # done = self.update_done(next_observation)
         if done:
             return obs, 100, True, info
         return obs, reward, False, info
@@ -101,9 +152,48 @@ class PourSimulation(RealInSimulation):
     def is_pour(self):
         pass
 
+    def is_grasp_from_sim(self, info, action):
+        if not self.ask_grasp and not self.grasp_flag and (self.last_action is not None and self.last_action[-1] == -1 and action[-1] == 1):
+            print("in update reward")
+            if info["gripper_can"] < 0.085:
+                self.grasp_flag = True
+            self.ask_grasp = True
+            if self.grasp_flag:
+                if len(self.last_frame)  % 2 != 0:
+                    last_frames = np.array(self.last_frame[:-1])
+                else:
+                    last_frames = np.array(self.last_frame)
+                grasp_video = torch.from_numpy(last_frames)
+                grasp_video = grasp_video[None, :,:,:,:]
+                grasp_video = grasp_video.permute(0, 2, 1, 3, 4)
+                grasp_video_output = self.net(grasp_video.float())
+                last_grasp_embedding = grasp_video_output['video_embedding']
+                max_reward = -float('inf')
+                for demo_embedding in self.grasp_demo_embedding:
+                    similarity_matrix = torch.matmul(demo_embedding, last_grasp_embedding.t())
+                    demo_reward = similarity_matrix.detach().numpy()[0][0]
+                    if demo_reward > max_reward:
+                        max_reward = demo_reward
+                return max_reward
+        return -1
+
+    def is_pour_from_sim(self, info):
+        pass
+
+    def is_grasp_done_from_sim(self, info, action):
+        if action[-1] == 1 and self.grasp_flag and (self.sub_task_idx==1) and (
+            0.10 > info["delta_gripper"] and info["delta_gripper"] > 0.05) and (
+                0.08 > info["gripper_can"]
+            ):
+            return True
+        else:
+            return False
+
     def reset(self):
+        self.last_info = None
         self.grasp_flag = False
         self.ask_grasp = False
+        self.last_frame = []
         observation = super().reset()
         if self.env_info['is_crop']:
             obs = resize_image(observation['crop_sceneview_image'], 1/6)
@@ -156,13 +246,15 @@ def set_params(args):
     env_info['control_freq'] = 20
     env_info['use_joint_controller'] = False
     env_info['max_action'] = 0.06
-    env_info['init_noise'] = True
+    env_info['init_noise'] = False
     env_info['init_translation_noise_bounds'] = (-0.01, 0.001)
     env_info['init_rotation_noise_bounds'] = (-5, 5)
     if env_info['is_crop']:
-        replay_buffer_load_dir = replay_data_save_path + "crop_pt_data"
+        replay_buffer_load_dir = replay_data_save_path + "20_crop_pt_data"
     else:
         replay_buffer_load_dir = replay_data_save_path + "no_crop_pt_data"
+    env_info['replay_buffer_load_dir'] = replay_buffer_load_dir
+
     policy_params = {
     "work_dir": work_dir,
     "task_name": task_name,
@@ -261,7 +353,7 @@ if __name__ == "__main__":
     #                     camera_heights=env_info['camera_heights'],
     #                     camera_widths=env_info['camera_widths'],
     #                     camera_names=env_info['camera_names'],)
-    # traj_path = os.path.join("/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/pour_can_new/Pour can into a cup9/data")
+    # traj_path = os.path.join("/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/20_crop_pour_can_new/Pour can into a cup9/data")
     # files = sorted(os.listdir(traj_path), key=lambda x: int(x.split(".")[0]))
     # env.reset()
     # for file in files:
@@ -270,8 +362,11 @@ if __name__ == "__main__":
     #         with open(file_path, "rb") as f:
     #             data = pickle.load(f)
     #             action = data['actions']
+    #             obs1 = data['obses']
+    #             obs1 = resize_image(obs1, 1/6)
     #             obs, reward, done, info = env.step(action)
-    #             print(obs.shape)
+    #             print(obs1.shape)
+    #             # cv2.imshow("test", obs1)
     #             cv2.imshow("test", np.transpose(obs, (1, 2, 0)))
     #             cv2.waitKey(1)
     #             print("reward", reward)

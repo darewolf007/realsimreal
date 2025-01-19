@@ -3,11 +3,13 @@ import base64
 import numpy as np
 import os
 import io
+import json
+import requests
 import PIL.Image as Image
 os.environ['ALL_PROXY'] = ''
 os.environ['all_proxy'] = ''
 
-def ask_online(image_data, prompt, other_image = None, model_choice = "claude-3-5-sonnet-20240620", max_retries=5):
+def ask_claude(image_data, prompt, other_image = None, model_choice = "claude-3-5-sonnet-20240620", max_retries=5):
     client = OpenAI(
         api_key="sk-QyHM6JgtRWhaM33UHyx7ovfhSzXn07GdO4klT7nl4CaR6XzK",
         base_url="https://api.aikeji.vip/v1"
@@ -96,7 +98,22 @@ def ask_online(image_data, prompt, other_image = None, model_choice = "claude-3-
             print("network error, retrying...")
     return "0"
 
-def ask_grasp_subtask(image_dict, moving_obj = "", target_obj = "can"):
+def ask_qwen_online(image_data, prompt, url = 'http://10.184.17.177:8001/predict'):
+    images_list = ["/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/pour_can_new/Pour can into a cup4/rgb_frontview/60.png"]
+    # images_list.append(image_data)
+    text_list = []
+    text_list.append(prompt)
+    data = json.dumps({"texts": text_list, "images": images_list})
+    response = requests.post(url, data=data, headers={'Content-Type': 'application/json'}, timeout=1000)
+    response.raise_for_status()
+    results = response.json()
+    return results['response']
+
+def ask_grasp_subtask(image_dict, moving_obj = "", target_obj = "can", ask_qwen = True):
+    if ask_qwen:
+        ask_online = ask_qwen_online
+    else:
+        ask_online = ask_claude
     promot_1 = f"Is the object {target_obj} in the current perspective significantly occluded by the two-finger gripper? 0 represents no occlusion, and 1 represents occlusion. Directly output 0 or 1."
     promot_2_0 = f"If the object {target_obj} is not occluded, the projection of the object must largely fall within the gripper's area, without requiring complete enclosure or coverage. 0 represents not meeting the requirement, and 1 represents meeting the requirement. Directly output 0 or 1."
     promot_2_1 = f"If the object {target_obj} is occluded, at least one finger of the two-finger gripper must have a projection overlapping with the object and occlude it. Complete enclosure or coverage is not required. 0 represents not meeting the requirement, and 1 represents meeting the requirement. Directly output 0 or 1."
@@ -113,7 +130,7 @@ def ask_grasp_subtask(image_dict, moving_obj = "", target_obj = "can"):
             return False
     return True
     
-def ask_pour_subtask(image_dict, moving_obj = "", target_obj = ""):
+def ask_pour_subtask(image_dict, moving_obj = "", target_obj = "", ask_qwen = False):
     promot_1 = f"Which of these two perspectives better shows the tilt angle between the {moving_obj} and the {target_obj} in the vertical direction relative to the table? Directly output 0 or 1."
     promot_2 = f"Let's think step by step. The tilt angle of the can relative to the vertical direction of the {target_obj} should be greater than 40 degrees. Does this perspective meet the requirement? 0 represents not meeting the requirement, and 1 represents meeting the requirement. Directly only output 0 or 1."
     promot_3 = f"Let's think step by step. The edge of the {moving_obj}'s opening should be close to the upper edge of the {target_obj}. Does this perspective meet the requirement? 0 represents not meeting the requirement, and 1 represents meeting the requirement. Directly only output 0 or 1."
@@ -153,17 +170,17 @@ def ask_pour_subtask(image_dict, moving_obj = "", target_obj = ""):
 
 if __name__ == "__main__":
     import PIL.Image as Image
-    # front_view_image = Image.open("/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/Pour can into a cup1/rgb_frontview/60.png").convert("RGB")
-    # right_view_image = Image.open("/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/Pour can into a cup1/rgb_rightview/60.png").convert("RGB")
-    # bird_view_image = Image.open("/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/Pour can into a cup1/rgb_birdview/60.png").convert("RGB")
-    front_view_image = Image.open("/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/pour_can_new/Pour can into a cup1/rgb_frontview/169.png").convert("RGB")
-    right_view_image = Image.open("/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/pour_can_new/Pour can into a cup1/rgb_rightview/169.png").convert("RGB")
-    bird_view_image = Image.open("/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/pour_can_new/Pour can into a cup1/rgb_birdview/169.png").convert("RGB")
+    front_view_image = Image.open("/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/pour_can_new/Pour can into a cup4/rgb_frontview/60.png").convert("RGB")
+    right_view_image = Image.open("/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/pour_can_new/Pour can into a cup4/rgb_rightview/60.png").convert("RGB")
+    bird_view_image = Image.open("/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/pour_can_new/Pour can into a cup4/rgb_birdview/60.png").convert("RGB")
+    # front_view_image = Image.open("/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/pour_can_new/Pour can into a cup4/rgb_frontview/169.png").convert("RGB")
+    # right_view_image = Image.open("/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/pour_can_new/Pour can into a cup4/rgb_rightview/169.png").convert("RGB")
+    # bird_view_image = Image.open("/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/pour_can_new/Pour can into a cup4/rgb_birdview/169.png").convert("RGB")
     image_dict = {
         "front_view": np.array(front_view_image),
         "right_view": np.array(right_view_image),
         "bird_view": np.array(bird_view_image),
     }
-    # grasp_state = ask_grasp_subtask(image_dict, moving_obj = "gripper", target_obj = "can")
-    pour_state = ask_pour_subtask(image_dict, moving_obj = "can", target_obj = "cup")
-    print(pour_state)
+    grasp_state = ask_grasp_subtask(image_dict, moving_obj = "gripper", target_obj = "can")
+    # pour_state = ask_pour_subtask(image_dict, moving_obj = "can", target_obj = "cup")
+    print(grasp_state)

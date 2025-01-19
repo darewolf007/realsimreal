@@ -112,6 +112,20 @@ def count_files_in_directory(directory):
         file_count += len(files)
     return file_count
 
+def quaternion_to_euler(quaternion, quat_format='wxyz', euler_format='xyz'):
+    if quat_format == "wxyz":
+        quaternion = quaternion[[1, 2, 3, 0]]
+    r = R.from_quat(quaternion)
+    euler_angles = r.as_euler(euler_format, degrees=True)
+    return euler_angles 
+
+def euler_to_quaternion(euler_angles, quat_format='wxyz', euler_format='xyz'):
+    r = R.from_euler('xyz', euler_angles, degrees=True)
+    quaternion = r.as_quat()
+    if quat_format == 'wxyz':
+        return quaternion[[3, 0, 1, 2]]
+    return quaternion
+
 def test_delta_end(env_info):
     real_data = []
     sim_data = []
