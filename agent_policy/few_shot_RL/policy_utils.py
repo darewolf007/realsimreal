@@ -247,7 +247,7 @@ class ReplayBuffer(Dataset):
             self.idx = end
             self.keep_loaded_end = end
         # action is m, too small, conver to cm
-        self.actions[:,:-1] *= 100
+        self.actions[:,:3] *= 100
         self.demo_starts = np.load(os.path.join(save_dir, "demo_starts.npy"))
         self.demo_ends = np.load(os.path.join(save_dir, "demo_ends.npy"))
 

@@ -275,10 +275,9 @@ class RealInSimulation:
                 if self.has_renderer:
                     self.env.render()
                 print("sub id", self.sub_task_idx)
-                if self.all_task_step_num == self.sub_task_max_num:
-                    print(self.all_task_step_num)
-                    break
-                # break
+                # if self.all_task_step_num == self.sub_task_max_num:
+                #     print(self.all_task_step_num)
+                #     break
 
         # if use_joint_controller:
         #     print("update endeffector simulation xml obj pose")
@@ -373,6 +372,7 @@ class RealInSimulation:
         right_gripper_site_pos = self.env.sim.data.get_site_xpos('gripper0_right_right_grip_site').copy()
         delta_gripper = np.linalg.norm(left_gripper_site_pos - right_gripper_site_pos)
         info["delta_gripper"] = delta_gripper
+        info["truncation"] = False
         if self.all_task_step_num == self.all_task_max_num:
             info["truncation"] = True
 
@@ -508,7 +508,10 @@ class RealInSimulation:
         if self.env_info['use_joint_controller']:
             return (self.env.robots[0].dof,)
         else:
-            return (8,)
+            if self.env_info['use_euler']:
+                return (7,)
+            else:
+                return (8,)
         
 if __name__ == "__main__":
     task_name = "Pour can into a cup"
@@ -540,23 +543,26 @@ if __name__ == "__main__":
     env_info['obj_info'] = scene_dict
     env_info['use_gravity'] = True
     env_info['data_path'] = "/home/haowen/hw_mine/Real_Sim_Real/data/real_data/pour_all/8/traj/"
-    begin_step = 35
+    begin_step = 2
     # env_info['base_choose'] = "camera"
     env_info['base_choose'] = "robot"
-    robot_init_pose = np.load("/home/haowen/hw_mine/Real_Sim_Real/data/real_data/pour_all/8/traj/" + "joint_34.npy")
+    robot_init_pose = np.load(env_info['data_path'] + "joint_" + str(begin_step) + ".npy")
     robot_init_pose[0], robot_init_pose[2] = robot_init_pose[2], robot_init_pose[0]
     env_info['robot_init_qpos'] = robot_init_pose
-    env_info['max_reward'] = 1
     env_info['camera_depths'] = True
-    env_info['is_crop'] = True
+    env_info['is_crop'] = False
     env_info['crop_image_size'] = (768, 768)
-    env_info['camera_heights'] = [768*2, 1536, 1536, 1536]
-    env_info['camera_widths'] = [2048, 2048, 2048, 2048]
+    if env_info['is_crop']:
+        env_info['camera_heights'] = [768*2, 1536, 1536, 1536]
+        env_info['camera_widths'] = [2048, 2048, 2048, 2048]
+    else:
+        env_info['camera_heights'] = [768*2, 1536, 1536, 1536]
+        env_info['camera_widths'] = [768*2, 2048, 2048, 2048]
     env_info['camera_names'] = ["sceneview", "birdview", "frontview", "rightview"]
     env_info['has_renderer'] = True
     env_info['control_freq'] = 20
-    env_info['task_max_step'] = 20
-    env_info['subtask_max_step'] = 20
+    env_info['task_max_step'] = 200
+    env_info['subtask_max_step'] = 50
     env_info['use_euler'] = True
     env_info['action_noise'] = False
     env_info['init_noise'] = False

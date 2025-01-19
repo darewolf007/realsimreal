@@ -5,8 +5,9 @@ import numpy as np
 import sys
 sys.path.insert(0, os.getcwd())
 from utils.image_util import resize_image
+import shutil
 
-def convert_pickles_to_pt(data_dir, output_path):
+def convert_pickles_to_pt(data_dir, output_path, crop):
     all_obses = []
     all_next_obses = []
     all_actions = []
@@ -27,8 +28,9 @@ def convert_pickles_to_pt(data_dir, output_path):
                 file_path = os.path.join(traj_path, file)
                 with open(file_path, "rb") as f:
                     data = pickle.load(f)
-                    all_obses.append(np.transpose(resize_image(data['obses'], 1/6), (2, 0, 1)))
-                    all_next_obses.append(np.transpose(resize_image(data['next_obses'], 1/6), (2, 0, 1)))
+                    all_obses.append(np.transpose(resize_image(data['obses'], crop), (2, 0, 1)))
+                    all_next_obses.append(np.transpose(resize_image(data['next_obses'], crop), (2, 0, 1)))
+                    data['actions'][3:-1] = np.radians(data['actions'][3:-1])
                     all_actions.append(data['actions'])
                     if data['rewards'] == 0:
                         all_rewards.append(-1)
@@ -51,6 +53,8 @@ def convert_pickles_to_pt(data_dir, output_path):
     all_actions = torch.tensor(all_actions)
     all_rewards = torch.tensor(all_rewards)
     all_not_dones = torch.tensor(all_not_dones)
+    print("angle", all_actions[:, 3:-1].max())
+    print("action", all_actions[:, :3].max())
     pt_file_name = str(start) + "_" + str(end) +".pt"
     torch.save((all_obses, all_next_obses, all_actions, all_rewards, all_not_dones), output_path + pt_file_name)
     np.save(os.path.join(output_path, "demo_ends.npy"), demo_ends)
@@ -101,6 +105,15 @@ def convert_real_to_pt(data_dir, output_path):
     np.save(os.path.join(output_path, "demo_starts.npy"), demo_ends)
 
 if __name__ == "__main__":
-    data_dir = "/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/20_crop_pour_can_new"
-    output_path = "/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/20_crop_pt_data/" 
-    convert_pickles_to_pt(data_dir, output_path)
+    data_name = "pour_can"
+    if "crop" in data_name:
+        crop = 1/6
+    else:
+        crop = 1/12
+    data_dir = "/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/" + data_name
+    output_path = "/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/pt_data/" 
+    pt_output_path = output_path + data_name
+    if os.path.exists(pt_output_path):
+        shutil.rmtree(pt_output_path)
+    os.mkdir(pt_output_path)
+    convert_pickles_to_pt(data_dir, pt_output_path + "/", crop)

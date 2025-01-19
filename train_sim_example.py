@@ -16,7 +16,10 @@ from pre_train.s3d.s3dg import S3D
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--task_name", default="Pour_can_into_cup")
+    parser.add_argument("--dataset_name", default="20_crop_pour_can")
+    parser.add_argument("--task_max_step", default= 200)
     parser.add_argument("--is_crop", default=True)
+    parser.add_argument("--train_subtask", default=True)
     parser.add_argument("--crop_image_size", default=(768, 768))
     parser.add_argument("--camera_heights", type=int, nargs='+', default=[1536, 1536, 1536, 1536])
     parser.add_argument("--camera_widths", type=int, nargs='+', default=[2048, 2048, 2048, 2048])
@@ -29,9 +32,12 @@ class PourSimulation(RealInSimulation):
         self.grasp_flag = False
         self.task_data_path = "./experiments/Pour_can_into_cup/promot_data/all"
         if env_info['use_joint_controller']:
-            self.action_space = gym.spaces.Box(low=-env_info['max_action'], high=env_info['max_action'], shape=(self.env.robots[0].dof,), dtype=float)
+            self.action_space = gym.spaces.Box(low=-env_info['max_action'], high=env_info['max_action'], shape=(self.env.robots[0].dof + 1,), dtype=float)
         else:
-            self.action_space = gym.spaces.Box(low=-env_info['max_action'], high=env_info['max_action'], shape=(8,), dtype=float)
+            if env_info['use_euler']:
+                self.action_space = gym.spaces.Box(low=-env_info['max_action'], high=env_info['max_action'], shape=(7,), dtype=float)
+            else:
+                self.action_space = gym.spaces.Box(low=-env_info['max_action'], high=env_info['max_action'], shape=(8,), dtype=float)
         self.ask_grasp = False
         self.last_frame = []
         self.grasp_demo_embedding = []
@@ -48,6 +54,7 @@ class PourSimulation(RealInSimulation):
         path = os.path.join(pt_data_path, chucks[0])
         payload = torch.load(path)
         obses = payload[0]
+        next_obses = payload[1]
         actions = payload[2]
         self.demo_starts = np.load(os.path.join(pt_data_path, "demo_starts.npy"))
         self.demo_ends = np.load(os.path.join(pt_data_path, "demo_ends.npy"))
@@ -56,7 +63,7 @@ class PourSimulation(RealInSimulation):
             end = self.demo_ends[i]
             if end % 2 != 0:
                 end -= 1
-            frames = obses[start:end]
+            frames = next_obses[start:end]
             frames = frames[None, :,:,:,:]
             video = frames.permute(0, 2, 1, 3, 4)
             video_output = self.net(video.float())
@@ -66,10 +73,10 @@ class PourSimulation(RealInSimulation):
             start = self.demo_starts[i]
             end = self.demo_ends[i]
             action = actions[start:end, -1]
-            transition_indices = int(np.where((action[:-1] == -1) & (action[1:] == 1))[0])
+            transition_indices = np.where((action[:-1] == -1) & (action[1:] == 1))[0][0]
             if transition_indices % 2 != 0:
                 transition_indices -= 1
-            frames = obses[start:start+transition_indices]
+            frames = next_obses[start:start+transition_indices]
             frames = frames[None, :,:,:,:]
             video = frames.permute(0, 2, 1, 3, 4)
             video_output = self.net(video.float())
@@ -79,15 +86,19 @@ class PourSimulation(RealInSimulation):
     def init_vido_embedding(self):
         self.net = S3D('./pre_train/s3d/s3d_dict.npy', 512)
         self.net.load_state_dict(torch.load('./pre_train/s3d/s3d_howto100m.pth'))
+        self.net = self.net.eval()
 
     def step(self, action, use_delta=True, use_joint_controller=False):
         print("last_action", self.last_action)
         print("action", action)
-        action[:7] = np.clip(action[:7], -self.env_info['max_action'], self.env_info['max_action'])
+        action[:3] = action[:3]/100
+        action[:3] = np.clip(action[:3], -self.env_info['max_action'], self.env_info['max_action'])
+        action[3:-1] = np.clip(action[3:-1], -7, 7)
         action[-1] = 1 if action[-1] > 0 else -1
+        action[3:-1] = np.degrees(action[3:-1])
         # reward = self.update_reward(action)
         reward = self.is_grasp_from_sim(self.last_info, action)
-        next_observation, _, _, info = super().multi_step(action, use_delta, use_joint_controller, is_collect=True, step_num=1)
+        next_observation, _, _, info = super().multi_step(action, use_delta, use_joint_controller, is_collect=True, step_num=1, use_euler= self.env_info['use_euler'])
         self.last_info = info
         print(self.env_info['is_crop'])
         if self.env_info['is_crop']:
@@ -96,10 +107,23 @@ class PourSimulation(RealInSimulation):
             obs = resize_image(next_observation['sceneview_image'], 1/12)
         obs = np.transpose(obs, (2, 0, 1))
         self.last_frame.append(obs)
-        done = self.is_grasp_done_from_sim(info, action)
+        if self.env_info["train_subtask"]:
+            done = self.is_grasp_done_from_sim(info, action)
+        else:
+            done = self.is_pour_done_from_sim(info, action)
         # done = self.update_done(next_observation)
         if done:
-            return obs, 100, True, info
+            if self.env_info['add_additional_reward']:
+                reward = 100 + self.update_done_additional_reward()
+            else:
+                reward = 100
+            return obs, reward, True, info
+        if info["truncation"] == True:
+            if self.env_info['add_additional_reward']:
+                reward = self.update_done_additional_reward()
+            else:
+                reward = -1
+            return obs, reward, True, info
         return obs, reward, False, info
     
     def update_reward(self, action):
@@ -107,8 +131,8 @@ class PourSimulation(RealInSimulation):
             print("in update reward")
             self.grasp_flag = self.is_grasp(self.last_observation)
             self.ask_grasp = True
-            if self.grasp_flag:
-                return 100
+            # if self.grasp_flag:
+            #     return 100
         return -1
 
     def update_done(self, next_observation):
@@ -152,33 +176,61 @@ class PourSimulation(RealInSimulation):
     def is_pour(self):
         pass
 
+    def update_grasp_additional_reward(self):
+        if len(self.last_frame)  % 2 != 0:
+            last_frames = np.array(self.last_frame[:-1])
+        else:
+            last_frames = np.array(self.last_frame)
+        grasp_video = torch.from_numpy(last_frames)
+        grasp_video = grasp_video[None, :,:,:,:]
+        grasp_video = grasp_video.permute(0, 2, 1, 3, 4)
+        grasp_video_output = self.net(grasp_video.float())
+        last_grasp_embedding = grasp_video_output['video_embedding']
+        max_reward = -float('inf')
+        for demo_embedding in self.grasp_demo_embedding:
+            similarity_matrix = torch.matmul(demo_embedding, last_grasp_embedding.t())
+            demo_reward = similarity_matrix.detach().numpy()[0][0]
+            if demo_reward > max_reward:
+                max_reward = demo_reward
+        return max_reward
+    
+    def update_done_additional_reward(self):
+        if len(self.last_frame)  % 2 != 0:
+            last_frames = np.array(self.last_frame[:-1])
+        else:
+            last_frames = np.array(self.last_frame)
+        grasp_video = torch.from_numpy(last_frames)
+        grasp_video = grasp_video[None, :,:,:,:]
+        grasp_video = grasp_video.permute(0, 2, 1, 3, 4)
+        grasp_video_output = self.net(grasp_video.float())
+        last_grasp_embedding = grasp_video_output['video_embedding']
+        max_reward = -float('inf')
+        for demo_embedding in self.done_demo_embedding:
+            similarity_matrix = torch.matmul(demo_embedding, last_grasp_embedding.t())
+            demo_reward = similarity_matrix.detach().numpy()[0][0]
+            if demo_reward > max_reward:
+                max_reward = demo_reward
+        return max_reward
+
     def is_grasp_from_sim(self, info, action):
         if not self.ask_grasp and not self.grasp_flag and (self.last_action is not None and self.last_action[-1] == -1 and action[-1] == 1):
             print("in update reward")
             if info["gripper_can"] < 0.085:
                 self.grasp_flag = True
             self.ask_grasp = True
-            if self.grasp_flag:
-                if len(self.last_frame)  % 2 != 0:
-                    last_frames = np.array(self.last_frame[:-1])
-                else:
-                    last_frames = np.array(self.last_frame)
-                grasp_video = torch.from_numpy(last_frames)
-                grasp_video = grasp_video[None, :,:,:,:]
-                grasp_video = grasp_video.permute(0, 2, 1, 3, 4)
-                grasp_video_output = self.net(grasp_video.float())
-                last_grasp_embedding = grasp_video_output['video_embedding']
-                max_reward = -float('inf')
-                for demo_embedding in self.grasp_demo_embedding:
-                    similarity_matrix = torch.matmul(demo_embedding, last_grasp_embedding.t())
-                    demo_reward = similarity_matrix.detach().numpy()[0][0]
-                    if demo_reward > max_reward:
-                        max_reward = demo_reward
-                return max_reward
+            if self.grasp_flag and self.env_info['add_additional_reward']:
+                reward = -1 + self.update_grasp_additional_reward()
+                return reward
         return -1
 
-    def is_pour_from_sim(self, info):
-        pass
+    def is_pour_done_from_sim(self, info, action):
+        if action[-1] == 1 and self.grasp_flag and (self.sub_task_idx==1) and (
+            0.10 > info["delta_gripper"] and info["delta_gripper"] > 0.05) and (
+                0.08 > info["gripper_can"] and 0.1 > info["gripper_cup"]
+            ):
+            return True
+        else:
+            return False
 
     def is_grasp_done_from_sim(self, info, action):
         if action[-1] == 1 and self.grasp_flag and (self.sub_task_idx==1) and (
@@ -212,15 +264,15 @@ def set_params(args):
     work_dir = os.path.join(base_path, "./experiments/" + task_name)
     real_data_dir = os.path.join(base_path, "./data/sim_data/" + task_name)
     handeye_T_path = os.path.join(base_path, "./configs/ur5_kinect_handeyecalibration_eye_on_base.yaml")
-    replay_data_save_path = os.path.join(base_path, "./data/sim_data/")
+    replay_data_save_path = os.path.join(base_path, "./data/sim_data/pt_data/")
     robot_init_pose = np.array([-1.35693056, -1.71684422,  2.140652  , -2.06463685, -1.52817947, -0.80174953])
     env_info = {}
     # env_info['obj_pose_base'] = "camera"
     # can_pose = np.array([[-0.29022616147994995, 0.9859233784675598, -0.04448934271931648, -0.21637749671936035], [-0.5486288070678711, -0.12811657786369324, 0.8261916637420654, 0.23622964322566986], [0.7840760350227356, 0.26419055461883545, 0.5616299510002136, 0.5847076177597046], [0.0, 0.0, 0.0, 1.0]])
     # cup_pose = np.array([[0.43723738193511963, 0.8989970684051514, -0.02505527436733246, 0.09150402992963791], [0.29450204968452454, -0.16944658756256104, -0.9405087232589722, 0.18733008205890656], [-0.8497599959373474, 0.4038466811180115, -0.3388448655605316, 0.6819711923599243], [0.0, 0.0, 0.0, 1.0]])
     env_info['obj_pose_base'] = "robot"
-    can_pose = np.array([-2.58006106e-01,  4.91104923e-01,  4.95361287e-02,  5.03430916e-02, 1.38954074e-15, -3.13515130e-16,  9.98731983e-01])
-    cup_pose = np.array([-3.99759997e-01,  2.25097344e-01,  4.50455912e-02,  1.47272580e-01, 3.50769505e-18,  5.26154258e-18,  9.89095944e-01])
+    can_pose = np.array([-2.58006106e-01,  4.77104923e-01,  4.95361287e-02,  5.03430916e-02, 1.38954074e-15, -3.13515130e-16,  9.98731983e-01])
+    cup_pose = np.array([-3.68759997e-01,  2.04097344e-01,  4.50455912e-02,  1.47272580e-01, 3.50769505e-18,  5.26154258e-18,  9.89095944e-01])
     scene_dict = {"labels": ["can", "cup"], "poses": [can_pose, cup_pose], "grasp_obj": [True, False]}
     env_info['online_data_save_path'] = os.path.join(work_dir, "promot_data")
     env_info['replay_data_save_path'] = replay_data_save_path
@@ -236,7 +288,6 @@ def set_params(args):
     # env_info['base_choose'] = "camera"
     env_info['base_choose'] = "robot"
     env_info['robot_init_qpos'] = robot_init_pose
-    env_info['max_reward'] = 1
     env_info['camera_depths'] = True
     env_info['crop_image_size'] = args.crop_image_size
     env_info['camera_heights'] = args.camera_heights
@@ -247,19 +298,27 @@ def set_params(args):
     env_info['use_joint_controller'] = False
     env_info['max_action'] = 0.06
     env_info['init_noise'] = False
-    env_info['init_translation_noise_bounds'] = (-0.01, 0.001)
+    env_info['init_translation_noise_bounds'] = (-0.01, 0.01)
     env_info['init_rotation_noise_bounds'] = (-5, 5)
+    env_info['task_max_step'] = args.task_max_step
+    env_info['subtask_max_step'] = 50
+    env_info['use_euler'] = True
+    env_info['add_additional_reward'] = True
+    env_info['train_subtask'] = args.train_subtask
     if env_info['is_crop']:
-        replay_buffer_load_dir = replay_data_save_path + "20_crop_pt_data"
+        env_info['camera_heights'] = [768*2, 1536, 1536, 1536]
+        env_info['camera_widths'] = [2048, 2048, 2048, 2048]
     else:
-        replay_buffer_load_dir = replay_data_save_path + "no_crop_pt_data"
+        env_info['camera_heights'] = [768*2, 1536, 1536, 1536]
+        env_info['camera_widths'] = [768*2, 2048, 2048, 2048]
+    replay_buffer_load_dir = replay_data_save_path + args.dataset_name
     env_info['replay_buffer_load_dir'] = replay_buffer_load_dir
 
     policy_params = {
     "work_dir": work_dir,
     "task_name": task_name,
     "sub_task_promot": [subtask_1, subtask_2],
-    "replay_buffer_capacity": 100000,
+    "replay_buffer_capacity": 300000,
     "replay_buffer_load_dir": replay_buffer_load_dir,
     "replay_buffer_keep_loaded": True,
     "pretrain_mode": None,
@@ -337,25 +396,46 @@ def trainer(args):
 
 if __name__ == "__main__":
     args = parse_args()
-    # convert_pickles_to_pt()
-    trainer(args)
-    # env_info, policy_params = set_params(args)
-    # env = PourSimulation("UR5e",
-    #                     env_info,
-    #                     has_renderer=env_info['has_renderer'],
-    #                     has_offscreen_renderer=True,
-    #                     render_camera=env_info['camera_names'][3],
-    #                     ignore_done=True,
-    #                     use_camera_obs=True,
-    #                     camera_depths=env_info['camera_depths'],
-    #                     control_freq=env_info['control_freq'],
-    #                     renderer="mjviewer",
-    #                     camera_heights=env_info['camera_heights'],
-    #                     camera_widths=env_info['camera_widths'],
-    #                     camera_names=env_info['camera_names'],)
+    # trainer(args)
+    env_info, policy_params = set_params(args)
+    env = PourSimulation("UR5e",
+                        env_info,
+                        has_renderer=True,
+                        has_offscreen_renderer=True,
+                        render_camera=env_info['camera_names'][0],
+                        ignore_done=True,
+                        use_camera_obs=True,
+                        camera_depths=env_info['camera_depths'],
+                        control_freq=env_info['control_freq'],
+                        renderer="mjviewer",
+                        camera_heights=env_info['camera_heights'],
+                        camera_widths=env_info['camera_widths'],
+                        camera_names=env_info['camera_names'],)
+    pt_data_path = env_info['replay_buffer_load_dir']
+    chunks = os.listdir(pt_data_path)
+    chunks = [c for c in chunks if c[-3:] == ".pt"]
+    chucks = sorted(chunks, key=lambda x: int(x.split("_")[0]))
+    path = os.path.join(pt_data_path, chucks[0])
+    payload = torch.load(path)
+    obses = payload[0]
+    actions = payload[2]
+    demo_starts = np.load(os.path.join(pt_data_path, "demo_starts.npy"))
+    demo_ends = np.load(os.path.join(pt_data_path, "demo_ends.npy"))
     # traj_path = os.path.join("/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/20_crop_pour_can_new/Pour can into a cup9/data")
     # files = sorted(os.listdir(traj_path), key=lambda x: int(x.split(".")[0]))
     # env.reset()
+    for i in range(len(demo_starts)):
+        env.reset()
+        start = demo_starts[i]
+        end = demo_ends[i]
+        traj_action = actions[start:end]
+        for step in range(traj_action.shape[0]):
+            step_action = np.array(traj_action[step])
+            step_action[:3] = step_action[:3] * 100
+            obs, reward, done, info = env.step(step_action)
+            print("reward", reward)
+            print("done", done)
+            print("info", info)
     # for file in files:
     #     if file.endswith(".pkl"):
     #         file_path = os.path.join(traj_path, file)
@@ -372,6 +452,6 @@ if __name__ == "__main__":
     #             print("reward", reward)
     #             print("done", done)
     #             print("info", info)
-    # env.close()
+    env.close()
 
     

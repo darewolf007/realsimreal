@@ -201,7 +201,7 @@ class FewDemoPolicy:
             if episode_step + 1 == self.env.all_task_max_num:
                 done = True
             episode_reward += reward
-
+            print("step:", step, "episode:", episode, "episode_step:", episode_step, "reward:", reward, "done:", done)
             replay_buffer.add(obs, action, reward, next_obs, done_bool)
 
             obs = next_obs
