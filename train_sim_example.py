@@ -15,9 +15,11 @@ from pre_train.s3d.s3dg import S3D
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--task_name", default="Pour_can_into_cup")
-    parser.add_argument("--dataset_name", default="20_crop_pour_can")
-    parser.add_argument("--task_max_step", default= 200)
+    parser.add_argument("--task_name", default="all_crop_pour_can")
+    parser.add_argument("--dataset_name", default="pour_can")
+    parser.add_argument("--task_max_step", type=int, default= 200)
+    parser.add_argument("--add_additional_reward", default= True)
+    parser.add_argument("--gpu_id", default= "0")
     parser.add_argument("--is_crop", default=True)
     parser.add_argument("--train_subtask", default=True)
     parser.add_argument("--crop_image_size", default=(768, 768))
@@ -43,8 +45,9 @@ class PourSimulation(RealInSimulation):
         self.grasp_demo_embedding = []
         self.done_demo_embedding = []
         self.last_info = None
-        self.init_vido_embedding()
-        self.pre_process_pt()
+        if self.env_info['add_additional_reward']:
+            self.init_vido_embedding()
+            self.pre_process_pt()
      
     def pre_process_pt(self):
         pt_data_path = self.env_info['replay_buffer_load_dir']
@@ -61,7 +64,7 @@ class PourSimulation(RealInSimulation):
         for i in range(len(self.demo_starts)):
             start = self.demo_starts[i]
             end = self.demo_ends[i]
-            if end % 2 != 0:
+            if (start - end) % 2 != 0:
                 end -= 1
             frames = next_obses[start:end]
             frames = frames[None, :,:,:,:]
@@ -181,6 +184,8 @@ class PourSimulation(RealInSimulation):
             last_frames = np.array(self.last_frame[:-1])
         else:
             last_frames = np.array(self.last_frame)
+        if last_frames.ndim != 4:
+            return -1
         grasp_video = torch.from_numpy(last_frames)
         grasp_video = grasp_video[None, :,:,:,:]
         grasp_video = grasp_video.permute(0, 2, 1, 3, 4)
@@ -255,6 +260,7 @@ class PourSimulation(RealInSimulation):
         return obs
 
 def set_params(args):
+    os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu_id
     task_name = args.task_name
     subtask_1 = "Pick up the can"
     subtask_2 = "Pour the can into the cup"
@@ -303,7 +309,7 @@ def set_params(args):
     env_info['task_max_step'] = args.task_max_step
     env_info['subtask_max_step'] = 50
     env_info['use_euler'] = True
-    env_info['add_additional_reward'] = True
+    env_info['add_additional_reward'] = args.add_additional_reward
     env_info['train_subtask'] = args.train_subtask
     if env_info['is_crop']:
         env_info['camera_heights'] = [768*2, 1536, 1536, 1536]
@@ -411,31 +417,36 @@ if __name__ == "__main__":
                         camera_heights=env_info['camera_heights'],
                         camera_widths=env_info['camera_widths'],
                         camera_names=env_info['camera_names'],)
+    policy = FewDemoPolicy(env, torch.device("cuda"), policy_params)
+    buffer = policy.train_IL_policy("dino_e2c_sac")
+    
     pt_data_path = env_info['replay_buffer_load_dir']
     chunks = os.listdir(pt_data_path)
     chunks = [c for c in chunks if c[-3:] == ".pt"]
     chucks = sorted(chunks, key=lambda x: int(x.split("_")[0]))
     path = os.path.join(pt_data_path, chucks[0])
-    payload = torch.load(path)
-    obses = payload[0]
-    actions = payload[2]
+    # payload = torch.load(path)
+    # obses = payload[0]
+    # actions = payload[2]
+    # actions[:,:3] = actions[:,:3] * 100
     demo_starts = np.load(os.path.join(pt_data_path, "demo_starts.npy"))
     demo_ends = np.load(os.path.join(pt_data_path, "demo_ends.npy"))
     # traj_path = os.path.join("/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/20_crop_pour_can_new/Pour can into a cup9/data")
     # files = sorted(os.listdir(traj_path), key=lambda x: int(x.split(".")[0]))
-    # env.reset()
+    env.reset()
     for i in range(len(demo_starts)):
         env.reset()
         start = demo_starts[i]
         end = demo_ends[i]
-        traj_action = actions[start:end]
+        traj_action = buffer.actions[start:end]
         for step in range(traj_action.shape[0]):
             step_action = np.array(traj_action[step])
-            step_action[:3] = step_action[:3] * 100
+            # step_action[:3] = step_action[:3] * 100
             obs, reward, done, info = env.step(step_action)
             print("reward", reward)
             print("done", done)
             print("info", info)
+        # break
     # for file in files:
     #     if file.endswith(".pkl"):
     #         file_path = os.path.join(traj_path, file)
