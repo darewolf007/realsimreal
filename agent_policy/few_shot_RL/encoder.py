@@ -58,7 +58,7 @@ class PixelEncoder(nn.Module):
                     nn.LayerNorm(self.outputs["conv%s" % (i + 1)].shape[1:])
                 )
         self.clip = clip
-        clip_use = True
+        clip_use = False
         fc_input_dim = num_filters * out_dim * out_dim
         if clip_use:
             fc_input_dim = fc_input_dim +512

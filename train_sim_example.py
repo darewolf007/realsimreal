@@ -11,13 +11,14 @@ from utils.image_util import resize_image, save_image_pkl
 from simple_sim.real_to_simulation import RealInSimulation
 from reward_model.online_reward_model import ask_grasp_subtask, ask_pour_subtask
 from agent_policy.few_shot_RL.policy import FewDemoPolicy
+from agent_policy.few_shot_RL.bc_sac_policy import BCSACPolicy
 from pre_train.s3d.s3dg import S3D
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--task_name", default="all_crop_pour_can")
-    parser.add_argument("--dataset_name", default="pour_can")
-    parser.add_argument("--task_max_step", type=int, default= 200)
+    parser.add_argument("--task_name", default="bc20_crop_pour_can")
+    parser.add_argument("--dataset_name", default="20_crop_pour_can")
+    parser.add_argument("--task_max_step", type=int, default= 25)
     parser.add_argument("--add_additional_reward", default= True)
     parser.add_argument("--gpu_id", default= "0")
     parser.add_argument("--is_crop", default=True)
@@ -115,7 +116,9 @@ class PourSimulation(RealInSimulation):
         else:
             done = self.is_pour_done_from_sim(info, action)
         # done = self.update_done(next_observation)
+        info['is_success'] = False
         if done:
+            info['is_success'] = True
             if self.env_info['add_additional_reward']:
                 reward = 100 + self.update_done_additional_reward()
             else:
@@ -342,15 +345,16 @@ def set_params(args):
     "agent_name": "dino_e2c_sac",
     "init_steps": 0,
     "num_train_steps": 10000,
+    "bc_train_steps": 5,
     "batch_size": 128,
     "hidden_dim": 1024,
     "eval_freq": 1000,
     "num_eval_episodes": 2,
-    "critic_lr": 1e-3,
+    "critic_lr": 0.001,
     "critic_beta": 0.9,
     "critic_tau": 0.01,
     "critic_target_update_freq": 2,
-    "actor_lr": 1e-3,
+    "actor_lr": 0.001,
     "actor_beta": 0.9,
     "actor_log_std_min": -10,
     "actor_log_std_max": 2,
@@ -375,7 +379,7 @@ def set_params(args):
     "v_clip_high": 100,
     "action_noise": None,
     "final_demo_density": 0.2,
-    "data_augs": "crop",
+    "data_augs": "center_crop",
     "log_interval": 200,
     "conv_layer_norm": True,
     "p_reward": 1,
@@ -397,7 +401,8 @@ def trainer(args):
                         camera_heights=env_info['camera_heights'],
                         camera_widths=env_info['camera_widths'],
                         camera_names=env_info['camera_names'],)
-    policy = FewDemoPolicy(env, torch.device("cuda"), policy_params)
+    # policy = FewDemoPolicy(env, torch.device("cuda"), policy_params)
+    policy = BCSACPolicy(env, torch.device("cuda"), policy_params)
     policy.train()
 
 if __name__ == "__main__":
@@ -417,18 +422,16 @@ if __name__ == "__main__":
                         camera_heights=env_info['camera_heights'],
                         camera_widths=env_info['camera_widths'],
                         camera_names=env_info['camera_names'],)
-    policy = FewDemoPolicy(env, torch.device("cuda"), policy_params)
-    buffer = policy.train_IL_policy("dino_e2c_sac")
     
     pt_data_path = env_info['replay_buffer_load_dir']
     chunks = os.listdir(pt_data_path)
     chunks = [c for c in chunks if c[-3:] == ".pt"]
     chucks = sorted(chunks, key=lambda x: int(x.split("_")[0]))
     path = os.path.join(pt_data_path, chucks[0])
-    # payload = torch.load(path)
-    # obses = payload[0]
-    # actions = payload[2]
-    # actions[:,:3] = actions[:,:3] * 100
+    payload = torch.load(path)
+    obses = payload[0]
+    actions = payload[2]
+    actions[:,:3] = actions[:,:3] * 100
     demo_starts = np.load(os.path.join(pt_data_path, "demo_starts.npy"))
     demo_ends = np.load(os.path.join(pt_data_path, "demo_ends.npy"))
     # traj_path = os.path.join("/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/20_crop_pour_can_new/Pour can into a cup9/data")
@@ -438,11 +441,13 @@ if __name__ == "__main__":
         env.reset()
         start = demo_starts[i]
         end = demo_ends[i]
-        traj_action = buffer.actions[start:end]
+        traj_action = actions[start:end]
         for step in range(traj_action.shape[0]):
             step_action = np.array(traj_action[step])
             # step_action[:3] = step_action[:3] * 100
             obs, reward, done, info = env.step(step_action)
+            cv2.imshow("test", np.transpose(obs, (1, 2, 0))[:,:,::-1])
+            cv2.waitKey(1)
             print("reward", reward)
             print("done", done)
             print("info", info)

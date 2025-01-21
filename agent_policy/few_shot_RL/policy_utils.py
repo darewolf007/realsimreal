@@ -293,13 +293,13 @@ def create_mlp(in_features, out_features, n_hidden_layers=3, hidden_size=512):
 
 if __name__ == "__main__":
     buffer = ReplayBuffer(
-        obs_shape=(3, 128, 128),
-        action_shape=(8,),
+        obs_shape=(6, 128, 128),
+        action_shape=(7,),
         capacity=100000,
         batch_size=1,
         device="cpu",
         image_size=112,
-        load_dir="/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/pt_data",
+        load_dir="/home/haowen/hw_mine/lane/demo/robosuite_door/10",
         keep_loaded=True,
         )
     buffer.sample_rad(None)
