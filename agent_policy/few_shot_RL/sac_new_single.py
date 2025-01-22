@@ -517,7 +517,7 @@ class RadSacAgent(object):
                 self.critic.encoder, self.critic_target.encoder, self.encoder_tau
             )
 
-    def update(self, replay_buffer, L, step, demo_density=None):
+    def update(self, replay_buffer, L, step, demo_density=None, task_text=None):
         if self.encoder_type == "pixel" or self.encoder_type == "dino":
             obs, action, reward, next_obs, not_done = replay_buffer.sample_rad(
                 self.augs_funcs, demo_density=demo_density

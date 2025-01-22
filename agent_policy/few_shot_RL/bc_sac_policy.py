@@ -91,7 +91,7 @@ class BCSACPolicy:
 
     def train(self):
         IL_agent_name = "rad_sac"
-        RL_agent_name = "dino_e2c_sac"
+        RL_agent_name = "rad_sac"
         torch.multiprocessing.set_start_method("spawn")
         self.train_BC_policy(IL_agent_name=IL_agent_name)
         # self.train_RL_policy(RL_agent_name=RL_agent_name)
@@ -138,7 +138,7 @@ class BCSACPolicy:
         agent = self.init_agent(self.choose_agent(RL_agent_name), obs_shape, action_shape)
         agent.replay_buffer = replay_buffer
         model_dir = self.model_dir
-        model_step = self.params['bc_train_steps']
+        model_step = 5
         agent.load(model_dir, model_step)
         episode, episode_reward, done = 0, 0, True
         start_time = time.time()
@@ -174,11 +174,18 @@ class BCSACPolicy:
                 self.L.log("train/episode", episode, step)
 
             # sample action for data collection
-            if step < 0:
-                action = self.env.action_space.sample()
+            if self.params['init_steps'] is not None:
+                if step < self.params['init_steps']/2:
+                    with policy_utils.eval_mode(agent):
+                        action = agent.sample_action(obs, task_text_token)
+                        action[3:-1] = np.array([0,0,0])
+                else:
+                    action = self.env.action_space.sample()
+                    action[3:-1] = np.array([0,0,0])
             else:
                 with policy_utils.eval_mode(agent):
                     action = agent.sample_action(obs, task_text_token)
+                    action[3:-1] = np.array([0,0,0])
 
             # run training update
             time_start = time.time()

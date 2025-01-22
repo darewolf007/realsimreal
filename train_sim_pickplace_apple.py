@@ -19,7 +19,8 @@ def parse_args():
     parser.add_argument("--task_name", default="Pick up apple and place it to the bowl_add")
     parser.add_argument("--dataset_name", default="Pick up apple and place it to the bowl")
     parser.add_argument("--task_max_step", type=int, default= 60)
-    parser.add_argument("--add_additional_reward", default= True)
+    parser.add_argument("--add_additional_reward", default= False)
+    parser.add_argument("--add_bc", default= True)
     parser.add_argument("--gpu_id", default= "0")
     parser.add_argument("--is_crop", default=False)
     parser.add_argument("--train_subtask", default=False)
@@ -29,7 +30,7 @@ def parse_args():
     args = parser.parse_args()
     return args
 
-class PourSimulation(RealInSimulation):
+class PickPlaceSimulation(RealInSimulation):
     def __init__(self, robot, env_info, has_renderer, *args, **kwargs):
         super().__init__(robot, env_info, has_renderer, *args, **kwargs)
         self.grasp_flag = False
@@ -93,18 +94,13 @@ class PourSimulation(RealInSimulation):
         self.net = self.net.eval()
 
     def step(self, action, use_delta=True, use_joint_controller=False):
-        print("last_action", self.last_action)
-        print("action", action)
-        action[:3] = action[:3]/100
         action[:3] = np.clip(action[:3], -self.env_info['max_action'], self.env_info['max_action'])
-        action[3:-1] = np.clip(action[3:-1], -7, 7)
+        action[:3] = action[:3]/100
         action[-1] = 1 if action[-1] > 0 else -1
-        action[3:-1] = np.array([0,0,0])
         # reward = self.update_reward(action)
-        reward = self.is_grasp_from_sim(self.last_info, action)
+        self.is_grasp_from_sim(self.last_info, action)
         next_observation, _, _, info = super().multi_step(action, use_delta, use_joint_controller, is_collect=True, step_num=1, use_euler= self.env_info['use_euler'])
         self.last_info = info
-        print(self.env_info['is_crop'])
         if self.env_info['is_crop']:
             obs = resize_image(next_observation['crop_sceneview_image'], 1/6)
         else:
@@ -114,25 +110,20 @@ class PourSimulation(RealInSimulation):
         if self.env_info["train_subtask"]:
             done = self.is_grasp_done_from_sim(info, action)
         else:
-            done = self.is_pour_done_from_sim(info, action)
-        # done = self.update_done(next_observation)
+            done = self.is_pickplace_done_from_sim(info, action)
         info['is_success'] = False
+        reward = self.update_reward(info, action)
+        if self.robot_collisions or info['robot_limits']:
+            print("collision")
+            return obs, -10, True, info
         if done:
             info['is_success'] = True
-            if self.env_info['add_additional_reward']:
-                reward = 100 + self.update_done_additional_reward()
-            else:
-                reward = 100
-            return obs, reward, True, info
         if info["truncation"] == True:
             if self.env_info['add_additional_reward']:
-                reward = self.update_done_additional_reward()
-            else:
-                reward = -1
-            return obs, reward, True, info
+                reward += self.update_done_additional_reward()
         return obs, reward, False, info
     
-    def update_reward(self, action):
+    def update_reward_online(self, action):
         if not self.ask_grasp and not self.grasp_flag and (self.last_action is not None and self.last_action[-1] == -1 and action[-1] == 1):
             print("in update reward")
             self.grasp_flag = self.is_grasp(self.last_observation)
@@ -220,18 +211,33 @@ class PourSimulation(RealInSimulation):
                 max_reward = demo_reward
         return max_reward
 
+    def update_reward(self, info, action):
+        grasp_reward = 0
+        if self.is_grasp_done_from_sim(info, action):
+            grasp_reward += 10
+            dist1 = info["subtask1"]
+            dist = dist1
+            reaching_reward = 1 - np.tanh(4 * dist)
+        else:
+            dist0 = info["subtask0"]
+            dist1 = info["subtask1"]
+            dist = dist0 + dist1
+            reaching_reward = 1 - np.tanh(4 * dist)
+        if self.is_pickplace_done_from_sim(info, action):
+            if self.env_info['add_additional_reward']:
+                grasp_reward = 10 + self.update_done_additional_reward()
+            else:
+                grasp_reward = 100
+        return reaching_reward + grasp_reward
+
     def is_grasp_from_sim(self, info, action):
         if not self.ask_grasp and not self.grasp_flag and (self.last_action is not None and self.last_action[-1] == -1 and action[-1] == 1):
             print("in update reward")
             if info["gripper_apple"] < 0.1:
                 self.grasp_flag = True
             self.ask_grasp = True
-            if self.grasp_flag and self.env_info['add_additional_reward']:
-                reward = -1 + self.update_grasp_additional_reward()
-                return reward
-        return -1
 
-    def is_pour_done_from_sim(self, info, action):
+    def is_pickplace_done_from_sim(self, info, action):
         if action[-1] == -1 and self.grasp_flag and (self.sub_task_idx==1) and (
             0.15 > info["gripper_bowl"]
             ):
@@ -242,7 +248,7 @@ class PourSimulation(RealInSimulation):
     def is_grasp_done_from_sim(self, info, action):
         if action[-1] == 1 and self.grasp_flag and (self.sub_task_idx==1) and (
             0.10 > info["delta_gripper"] and info["delta_gripper"] > 0.05) and (
-                0.08 > info["gripper_can"]
+                0.08 > info["gripper_apple"]
             ):
             return True
         else:
@@ -302,13 +308,14 @@ def set_params(args):
     env_info['has_renderer'] = False
     env_info['control_freq'] = 20
     env_info['use_joint_controller'] = False
-    env_info['max_action'] = 0.06
-    env_info['init_noise'] = False
+    env_info['max_action'] = 4
+    env_info['init_noise'] = True
     env_info['init_translation_noise_bounds'] = (-0.01, 0.01)
     env_info['init_rotation_noise_bounds'] = (-5, 5)
     env_info['task_max_step'] = args.task_max_step
     env_info['subtask_max_step'] = 50
     env_info['use_euler'] = True
+    env_info['use_delta'] = True
     env_info['add_additional_reward'] = args.add_additional_reward
     env_info['train_subtask'] = args.train_subtask
     if env_info['is_crop']:
@@ -340,9 +347,9 @@ def set_params(args):
     "model_dir": None,
     "model_step": 40000,
     "agent_name": "dino_e2c_sac",
-    "init_steps": 0,
-    "num_train_steps": 10000,
-    "bc_train_steps": 5,
+    "init_steps": 2000,
+    "num_train_steps": 350000,
+    "bc_train_steps": 10,
     "batch_size": 128,
     "hidden_dim": 1024,
     "eval_freq": 1000,
@@ -375,7 +382,7 @@ def set_params(args):
     "v_clip_low": -100,
     "v_clip_high": 100,
     "action_noise": None,
-    "final_demo_density": 0.2,
+    "final_demo_density": None,
     "data_augs": "center_crop",
     "log_interval": 200,
     "conv_layer_norm": True,
@@ -385,7 +392,7 @@ def set_params(args):
 
 def trainer(args):
     env_info, policy_params = set_params(args)
-    env = PourSimulation("UR5e",
+    env = PickPlaceSimulation("UR5e",
                         env_info,
                         has_renderer=env_info['has_renderer'],
                         has_offscreen_renderer=True,
@@ -398,58 +405,58 @@ def trainer(args):
                         camera_heights=env_info['camera_heights'],
                         camera_widths=env_info['camera_widths'],
                         camera_names=env_info['camera_names'],)
-    policy = FewDemoPolicy(env, torch.device("cuda"), policy_params)
-    # policy = BCSACPolicy(env, torch.device("cuda"), policy_params)
+    # policy = FewDemoPolicy(env, torch.device("cuda"), policy_params)
+    policy = BCSACPolicy(env, torch.device("cuda"), policy_params)
     policy.train()
 
 if __name__ == "__main__":
     args = parse_args()
-    # trainer(args)
-    env_info, policy_params = set_params(args)
-    env = PourSimulation("UR5e",
-                        env_info,
-                        has_renderer=True,
-                        has_offscreen_renderer=True,
-                        render_camera=env_info['camera_names'][0],
-                        ignore_done=True,
-                        use_camera_obs=True,
-                        camera_depths=env_info['camera_depths'],
-                        control_freq=env_info['control_freq'],
-                        renderer="mjviewer",
-                        camera_heights=env_info['camera_heights'],
-                        camera_widths=env_info['camera_widths'],
-                        camera_names=env_info['camera_names'],)
+    trainer(args)
+    # env_info, policy_params = set_params(args)
+    # env = PickPlaceSimulation("UR5e",
+    #                     env_info,
+    #                     has_renderer=True,
+    #                     has_offscreen_renderer=True,
+    #                     render_camera=env_info['camera_names'][0],
+    #                     ignore_done=True,
+    #                     use_camera_obs=True,
+    #                     camera_depths=env_info['camera_depths'],
+    #                     control_freq=env_info['control_freq'],
+    #                     renderer="mjviewer",
+    #                     camera_heights=env_info['camera_heights'],
+    #                     camera_widths=env_info['camera_widths'],
+    #                     camera_names=env_info['camera_names'],)
     
-    pt_data_path = env_info['replay_buffer_load_dir']
-    chunks = os.listdir(pt_data_path)
-    chunks = [c for c in chunks if c[-3:] == ".pt"]
-    chucks = sorted(chunks, key=lambda x: int(x.split("_")[0]))
-    path = os.path.join(pt_data_path, chucks[0])
-    payload = torch.load(path)
-    obses = payload[0]
-    actions = payload[2]
-    actions[:,:3] = actions[:,:3] * 100
-    demo_starts = np.load(os.path.join(pt_data_path, "demo_starts.npy"))
-    demo_ends = np.load(os.path.join(pt_data_path, "demo_ends.npy"))
-    # traj_path = os.path.join("/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/20_crop_pour_can_new/Pour can into a cup9/data")
-    # files = sorted(os.listdir(traj_path), key=lambda x: int(x.split(".")[0]))
-    env.reset()
-    for i in range(len(demo_starts)):
-        env.reset()
-        start = demo_starts[i]
-        end = demo_ends[i]
-        traj_action = actions[start:end]
-        demo_obs =obses[start:end]
-        for step in range(traj_action.shape[0]):
-            step_action = np.array(traj_action[step])
-            # step_action[:3] = step_action[:3] * 100
-            obs, reward, done, info = env.step(step_action)
-            # cv2.imshow("test", np.transpose(obs, (1, 2, 0))[:,:,::-1])
-            cv2.imshow("test", np.transpose(np.array(demo_obs[step]), (1, 2, 0))[:,:,::-1])
-            cv2.waitKey(1)
-            print("reward", reward)
-            print("done", done)
-            print("info", info)
-    env.close()
+    # pt_data_path = env_info['replay_buffer_load_dir']
+    # chunks = os.listdir(pt_data_path)
+    # chunks = [c for c in chunks if c[-3:] == ".pt"]
+    # chucks = sorted(chunks, key=lambda x: int(x.split("_")[0]))
+    # path = os.path.join(pt_data_path, chucks[0])
+    # payload = torch.load(path)
+    # obses = payload[0]
+    # actions = payload[2]
+    # actions[:,:3] = actions[:,:3] * 100
+    # demo_starts = np.load(os.path.join(pt_data_path, "demo_starts.npy"))
+    # demo_ends = np.load(os.path.join(pt_data_path, "demo_ends.npy"))
+    # # traj_path = os.path.join("/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/20_crop_pour_can_new/Pour can into a cup9/data")
+    # # files = sorted(os.listdir(traj_path), key=lambda x: int(x.split(".")[0]))
+    # env.reset()
+    # for i in range(len(demo_starts)):
+    #     env.reset()
+    #     start = demo_starts[i]
+    #     end = demo_ends[i]
+    #     traj_action = actions[start:end]
+    #     demo_obs =obses[start:end]
+    #     for step in range(traj_action.shape[0]):
+    #         step_action = np.array(traj_action[step])
+    #         # step_action[:3] = step_action[:3] * 100
+    #         obs, reward, done, info = env.step(step_action)
+    #         # cv2.imshow("test", np.transpose(obs, (1, 2, 0))[:,:,::-1])
+    #         cv2.imshow("test", np.transpose(np.array(demo_obs[step]), (1, 2, 0))[:,:,::-1])
+    #         cv2.waitKey(1)
+    #         print("reward", reward)
+    #         print("done", done)
+    #         print("info", info)
+    # env.close()
 
     

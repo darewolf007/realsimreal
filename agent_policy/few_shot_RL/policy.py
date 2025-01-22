@@ -89,7 +89,7 @@ class FewDemoPolicy:
         action = self.agent.sample_action(obs, task_text_token)
 
     def train(self):
-        IL_agent_name = "dino_e2c_sac"
+        IL_agent_name = self.params['agent_name']
         RL_agent_name = "dino_only_sac"
         torch.multiprocessing.set_start_method("spawn")
         self.train_IL_policy(IL_agent_name=IL_agent_name)
@@ -174,9 +174,11 @@ class FewDemoPolicy:
             # sample action for data collection
             if step < 0:
                 action = self.env.action_space.sample()
+                action[3:-1] = np.array([0,0,0])
             else:
                 with policy_utils.eval_mode(agent):
                     action = agent.sample_action(obs, task_text_token)
+                    action[3:-1] = np.array([0,0,0])
 
             # run training update
             time_start = time.time()
