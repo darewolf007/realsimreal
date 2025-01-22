@@ -1,11 +1,32 @@
 import mink
 import numpy as np
+import logging
+from typing import Optional
+import mujoco
+from mink.configuration import Configuration
+
+class ReturnConfig(Configuration):
+    def new_check_limits(self, tol: float = 1e-6, safety_break: bool = True) -> None:
+        for jnt in range(self.model.njnt):
+            jnt_type = self.model.jnt_type[jnt]
+            if (
+                jnt_type == mujoco.mjtJoint.mjJNT_FREE
+                or not self.model.jnt_limited[jnt]
+            ):
+                continue
+            padr = self.model.jnt_qposadr[jnt]
+            qval = self.q[padr]
+            qmin = self.model.jnt_range[jnt, 0]
+            qmax = self.model.jnt_range[jnt, 1]
+            if qval < qmin - tol or qval > qmax + tol:
+                return True
+        return False
 
 class mink_ik:
     def __init__(self, model, prefix="robot0_", collision_pairs=[]):
         self.model = model
         self.prefix = prefix
-        self.configuration = mink.Configuration(model)
+        self.configuration = ReturnConfig(model)
         self.end_effector_task = mink.FrameTask(
             frame_name=prefix + "attachment_site",
             frame_type="site",

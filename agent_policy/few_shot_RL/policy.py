@@ -145,6 +145,7 @@ class FewDemoPolicy:
         step = 0
         task_text_token = self.subtask_promot_tokens[0]
         while step < self.params['num_train_steps']:
+            task_text_token = None
             # evaluate agent periodically
             if step % self.params['eval_freq'] == 0:
                 if self.params['save_buffer']:
@@ -238,6 +239,7 @@ class FewDemoPolicy:
             task_text_token = self.subtask_promot_tokens[0]
             episode_step = 0
             while not done:
+                task_text_token = None
                 if isinstance(obs, list):
                     obs[0] = center_crop(obs[0], self.params['image_size'])
                 else:

@@ -8,7 +8,7 @@ from loop_rate_limiters import RateLimiter
 import mink
 
 if __name__ == "__main__":
-    model = mujoco.MjModel.from_xml_path("/home/haowen/hw_mine/Real_Sim_Real/ori_robosuite/robosuite/models/assets/grippers/robotiq_gripper_140.xml")
+    model = mujoco.MjModel.from_xml_path("/home/haowen/hw_mine/Real_Sim_Real/simple_sim/asset/know/marker.xml")
     data = mujoco.MjData(model)
 
     with mujoco.viewer.launch_passive(

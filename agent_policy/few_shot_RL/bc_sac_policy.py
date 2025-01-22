@@ -93,8 +93,8 @@ class BCSACPolicy:
         IL_agent_name = "rad_sac"
         RL_agent_name = "dino_e2c_sac"
         torch.multiprocessing.set_start_method("spawn")
-        # self.train_BC_policy(IL_agent_name=IL_agent_name)
-        self.train_RL_policy(RL_agent_name=RL_agent_name)
+        self.train_BC_policy(IL_agent_name=IL_agent_name)
+        # self.train_RL_policy(RL_agent_name=RL_agent_name)
 
     def init_tokenize(self):
         self.subtask_promot_tokens = []
@@ -267,7 +267,10 @@ class BCSACPolicy:
                 # Train policy with BC.
                 
                 pred_action, pi, log_pi, log_std = agent.actor(obs, detach_encoder=True)
-                actor_loss = ((pred_action - gt_action)**2).mean() * 100
+                # actor_loss = ((pred_action - gt_action)**2).mean() * 100
+                pos_rot_loss = ((pred_action[:, :6] - gt_action[:, :6])**2).mean() * 100
+                gripper_loss = ((pred_action[:, 6:] - gt_action[:, 6:])**2).mean() * 200
+                actor_loss = pos_rot_loss + gripper_loss
                 agent.actor_optimizer.zero_grad()
                 actor_loss.backward()
                 agent.actor_optimizer.step()

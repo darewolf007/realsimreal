@@ -1,0 +1,16 @@
+<mujoco model="marker">
+  <asset>
+    <mesh name="my_object" file="meshes/marker/textured.obj" scale = "1.0 1.0 1.0"/>
+    <texture file="meshes/marker/texture_map.png" name="tex-can" type="2d"/>
+    <material name="coke" reflectance="0.7" texrepeat="5 5" texture="tex-can" texuniform="true"/>
+  </asset>
+  <worldbody>
+    <body>
+        <body name="object">
+            <site rgba="0 0 0 0" size="0.005" pos="0 0 0" name="center_site"/>
+            <site size="0.01 0.01 0.01" pos="0 0 0.005" name="up_site" rgba="0 0 1 0.5" type="sphere" group="1"/>
+            <geom pos="0 0 0" mesh="my_object" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" material="coke" group="0" condim="4"/>
+        </body>
+    </body>
+  </worldbody>
+</mujoco>

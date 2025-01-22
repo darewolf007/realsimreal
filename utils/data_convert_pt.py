@@ -30,7 +30,8 @@ def convert_pickles_to_pt(data_dir, output_path, crop):
                     data = pickle.load(f)
                     all_obses.append(np.transpose(resize_image(data['obses'], crop), (2, 0, 1)))
                     all_next_obses.append(np.transpose(resize_image(data['next_obses'], crop), (2, 0, 1)))
-                    data['actions'][3:-1] = np.radians(data['actions'][3:-1])
+                    # data['actions'][3:-1] = np.radians(data['actions'][3:-1])
+                    data['actions'][3:-1] = np.array([0,0,0])
                     all_actions.append(data['actions'])
                     if data['rewards'] == 0:
                         all_rewards.append(-1)
@@ -105,7 +106,7 @@ def convert_real_to_pt(data_dir, output_path):
     np.save(os.path.join(output_path, "demo_starts.npy"), demo_ends)
 
 if __name__ == "__main__":
-    data_name = "pour_can"
+    data_name = "absulote_banana"
     if "crop" in data_name:
         crop = 1/6
     else:

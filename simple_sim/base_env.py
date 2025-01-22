@@ -16,10 +16,15 @@ from robosuite.utils.mjcf_utils import (
     recolor_collision_geoms,
     string_to_array,
 )
-from simple_sim.know_obj.xml_obj import CanObject, KettleObject, CupObject
+from simple_sim.know_obj.xml_obj import CanObject, KettleObject, CupObject, BananaObject, AppleObject, BowlObject
 from simple_sim.external_area import ExternalArea
 from simple_sim.sim_utils import add_noise_to_rotation_z
-KNOW_OBJ = {"can": CanObject, "kettle": KettleObject, "cup": CupObject}
+KNOW_OBJ = {"can": CanObject,
+             "kettle": KettleObject,
+              "cup": CupObject,
+              "banana": BananaObject,
+              "apple": AppleObject,
+              "bowl": BowlObject}
 
 class SimpleEnv(ManipulationEnv):
     def __init__(
@@ -168,3 +173,11 @@ class SimpleEnv(ManipulationEnv):
 
     def update_env_info(self, new_env_info):
         self.env_info = new_env_info
+
+    def robot_collisions(self):
+        if self.check_contact(self.robots[0].robot_model):
+            return True
+        elif self.robots[0].check_q_limits():
+            return True
+        else:
+            return False

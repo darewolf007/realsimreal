@@ -401,8 +401,8 @@ def trainer(args):
                         camera_heights=env_info['camera_heights'],
                         camera_widths=env_info['camera_widths'],
                         camera_names=env_info['camera_names'],)
-    # policy = FewDemoPolicy(env, torch.device("cuda"), policy_params)
-    policy = BCSACPolicy(env, torch.device("cuda"), policy_params)
+    policy = FewDemoPolicy(env, torch.device("cuda"), policy_params)
+    # policy = BCSACPolicy(env, torch.device("cuda"), policy_params)
     policy.train()
 
 if __name__ == "__main__":
@@ -442,11 +442,13 @@ if __name__ == "__main__":
         start = demo_starts[i]
         end = demo_ends[i]
         traj_action = actions[start:end]
+        demo_obs =obses[start:end]
         for step in range(traj_action.shape[0]):
             step_action = np.array(traj_action[step])
             # step_action[:3] = step_action[:3] * 100
             obs, reward, done, info = env.step(step_action)
-            cv2.imshow("test", np.transpose(obs, (1, 2, 0))[:,:,::-1])
+            # cv2.imshow("test", np.transpose(obs, (1, 2, 0))[:,:,::-1])
+            cv2.imshow("test", np.transpose(demo_obs[step], (1, 2, 0)))
             cv2.waitKey(1)
             print("reward", reward)
             print("done", done)
