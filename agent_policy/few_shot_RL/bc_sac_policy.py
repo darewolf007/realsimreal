@@ -18,6 +18,13 @@ from agent_policy.few_shot_RL.sac_new_single import (
     E2CILQRAgent,
 )
 
+def get_latest_model_step(model_dir):
+    files = os.listdir(model_dir)
+    steps = [int(f.split('_')[1].split('.')[0]) for f in files if f.startswith("actor_") and f.endswith(".pt")]
+    if not steps:
+        raise ValueError(f"No valid actor_*.pt files found in {model_dir}")
+    return max(steps)
+
 class BCSACPolicy:
     def __init__(
         self,
@@ -93,8 +100,8 @@ class BCSACPolicy:
         IL_agent_name = "rad_sac"
         RL_agent_name = "rad_sac"
         torch.multiprocessing.set_start_method("spawn")
-        self.train_BC_policy(IL_agent_name=IL_agent_name)
-        # self.train_RL_policy(RL_agent_name=RL_agent_name)
+        # self.train_BC_policy(IL_agent_name=IL_agent_name)
+        self.train_RL_policy(RL_agent_name=RL_agent_name)
 
     def init_tokenize(self):
         self.subtask_promot_tokens = []
@@ -138,7 +145,7 @@ class BCSACPolicy:
         agent = self.init_agent(self.choose_agent(RL_agent_name), obs_shape, action_shape)
         agent.replay_buffer = replay_buffer
         model_dir = self.model_dir
-        model_step = 5
+        model_step = get_latest_model_step(model_dir)
         agent.load(model_dir, model_step)
         episode, episode_reward, done = 0, 0, True
         start_time = time.time()
@@ -175,13 +182,13 @@ class BCSACPolicy:
 
             # sample action for data collection
             if self.params['init_steps'] is not None:
-                if step < self.params['init_steps']/2:
+                if step < self.params['init_steps']:
                     with policy_utils.eval_mode(agent):
                         action = agent.sample_action(obs, task_text_token)
                         action[3:-1] = np.array([0,0,0])
-                else:
-                    action = self.env.action_space.sample()
-                    action[3:-1] = np.array([0,0,0])
+                # else:
+                #     action = self.env.action_space.sample()
+                #     action[3:-1] = np.array([0,0,0])
             else:
                 with policy_utils.eval_mode(agent):
                     action = agent.sample_action(obs, task_text_token)
@@ -314,7 +321,6 @@ class BCSACPolicy:
             policy_utils.soft_update_params(
                 agent.critic.encoder, agent.critic_target.encoder, agent.encoder_tau
             )
-        agent.save(self.model_dir, self.params['bc_train_steps'])
         
     def eval_policy(self, agent, num_episodes, step, sample_stochastically=False):
         all_ep_rewards = []

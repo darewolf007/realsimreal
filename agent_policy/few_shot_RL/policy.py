@@ -172,7 +172,7 @@ class FewDemoPolicy:
                 self.L.log("train/episode", episode, step)
 
             # sample action for data collection
-            if step < 0:
+            if step < self.params['init_steps']:
                 action = self.env.action_space.sample()
                 action[3:-1] = np.array([0,0,0])
             else:

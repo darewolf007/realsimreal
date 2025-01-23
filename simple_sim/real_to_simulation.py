@@ -120,6 +120,21 @@ class RealInSimulation:
                     current_end_xpos[2] += 0.007
                     self.last_action = np.concatenate([current_end_xpos, current_end_xquat, np.array([-1])])
                 if use_euler:
+                    # current_end_xpos = self.env.sim.data.get_site_xpos('robot0_attachment_site').copy()
+                    # print("error", current_end_xpos - self.last_action[:3])
+                    # current_end_xquat = self.env.sim.data.get_site_xmat('robot0_attachment_site').copy()
+                    # current_end_xquat = R.from_matrix(current_end_xquat).as_quat()
+                    # current_end_xquat = current_end_xquat[[3, 0, 1, 2]]
+                    # delta_end_euler = action[3:-1]
+                    # current_end_euler = quaternion_to_euler(current_end_xquat, quat_format="wxyz", euler_format="xyz")
+                    # end_euler = current_end_euler + delta_end_euler
+                    # end_quat = euler_to_quaternion(end_euler, quat_format="wxyz", euler_format="xyz")
+                    # delta_end_xpos = action[:3]
+                    # end_xpos = current_end_xpos + delta_end_xpos
+                    # action = np.concatenate([end_xpos, self.last_action[3:-1], np.array([action[-1]])])
+                    # self.last_action = action
+                    # return action
+
                     delta_end_euler = action[3:-1]
                     last_end_xquat = self.last_action[3:-1]
                     current_end_euler = quaternion_to_euler(last_end_xquat, quat_format="wxyz", euler_format="xyz")
@@ -383,7 +398,7 @@ class RealInSimulation:
         filtered_list = [item for item in self.scene_all_obj_set if item != "gripper"]           
         for subtask_obj in filtered_list:
             gripper_site_pos = self.env.sim.data.get_site_xpos('gripper0_right_grip_site').copy()
-            obj_site_pos = self.env.sim.data.get_site_xpos(subtask_obj + "_up_site").copy()
+            obj_site_pos = self.env.sim.data.get_site_xpos(subtask_obj + "_center_site").copy()
             delta_trans = np.linalg.norm(gripper_site_pos - obj_site_pos)
             info["gripper_" + subtask_obj] = delta_trans
 

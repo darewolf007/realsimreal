@@ -16,14 +16,14 @@ from pre_train.s3d.s3dg import S3D
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--task_name", default="Pick up banana")
+    parser.add_argument("--task_name", default="Pick up banana20")
     parser.add_argument("--dataset_name", default="pick up banana")
     parser.add_argument("--task_max_step", type=int, default= 40)
-    parser.add_argument("--add_additional_reward", default= False)
-    parser.add_argument("--add_bc", default= True)
+    parser.add_argument("--add_additional_reward", default= False, action="store_true")
+    parser.add_argument("--add_bc", default= True, action="store_true")
     parser.add_argument("--gpu_id", default= "0")
-    parser.add_argument("--is_crop", default=False)
-    parser.add_argument("--train_subtask", default=True)
+    parser.add_argument("--is_crop", default=False, action="store_true")
+    parser.add_argument("--train_subtask", default=True, action="store_true")
     parser.add_argument("--crop_image_size", default=(768, 768))
     parser.add_argument("--camera_heights", type=int, nargs='+', default=[1536, 1536, 1536, 1536])
     parser.add_argument("--camera_widths", type=int, nargs='+', default=[2048, 2048, 2048, 2048])
@@ -111,14 +111,15 @@ class PickBananaSimulation(RealInSimulation):
             done = self.is_grasp_done_from_sim(info, action)
         info['is_success'] = False
         reward = self.update_reward(info, action)
-        if self.robot_collisions or info['robot_limits']:
-            print("collision")
-            return obs, -10, True, info
-        if done:
-            info['is_success'] = True
+        # if self.robot_collisions or info['robot_limits']:
+        #     print("collision")
+        #     return obs, -10, True, info
         if info["truncation"] == True:
             if self.env_info['add_additional_reward']:
                 reward += self.update_done_additional_reward()
+        if done:
+            info['is_success'] = True
+            return obs, reward, True, info
         return obs, reward, False, info
     
     def update_reward_online(self, action):
@@ -211,15 +212,18 @@ class PickBananaSimulation(RealInSimulation):
 
     def update_reward(self, info, action):
         dist = info["subtask" + str(self.sub_task_idx)]
-        reaching_reward = 1 - np.tanh(10.0 * dist)
-        grasp_reward = 0
+        if self.last_dist is None:
+            self.last_dist = dist
+            return 0
+        else:
+            delta_dist = self.last_dist - dist
+        self.last_dist = dist
+        reaching_reward = delta_dist * 10 - 0.5 * dist
         if info["gripper_banana"] < 0.06:
-            reaching_reward += 1
+            reaching_reward += 2
+        grasp_reward = 0
         if self.is_grasp_done_from_sim(info, action):
-            if self.env_info['add_additional_reward']:
-                grasp_reward = 10 + self.update_done_additional_reward()
-            else:
-                grasp_reward = 100
+            grasp_reward = 10 
         return reaching_reward + grasp_reward
 
     def is_grasp_from_sim(self, info, action):
@@ -239,6 +243,7 @@ class PickBananaSimulation(RealInSimulation):
 
     def reset(self):
         self.last_info = None
+        self.last_dist = None
         self.grasp_flag = False
         self.ask_grasp = False
         self.last_frame = []
@@ -293,7 +298,7 @@ def set_params(args):
     env_info['use_joint_controller'] = False
     env_info['max_action'] = 4
     env_info['init_noise'] = True
-    env_info['init_translation_noise_bounds'] = (-0.01, 0.01)
+    env_info['init_translation_noise_bounds'] = (-0.005, 0.005)
     env_info['init_rotation_noise_bounds'] = (-5, 5)
     env_info['task_max_step'] = args.task_max_step
     env_info['subtask_max_step'] = 50
@@ -332,7 +337,7 @@ def set_params(args):
     "agent_name": "rad_sac",
     "init_steps": 2000,
     "num_train_steps": 250000,
-    "bc_train_steps": 10,
+    "bc_train_steps": 20,
     "batch_size": 128,
     "hidden_dim": 1024,
     "eval_freq": 1000,
@@ -365,7 +370,7 @@ def set_params(args):
     "v_clip_low": -100,
     "v_clip_high": 100,
     "action_noise": None,
-    "final_demo_density": None,
+    "final_demo_density": 0.5,
     "data_augs": "center_crop",
     "log_interval": 200,
     "conv_layer_norm": True,

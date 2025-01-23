@@ -19,10 +19,10 @@ def parse_args():
     parser.add_argument("--task_name", default="Pick up apple and place it to the bowl_add")
     parser.add_argument("--dataset_name", default="Pick up apple and place it to the bowl")
     parser.add_argument("--task_max_step", type=int, default= 60)
-    parser.add_argument("--add_additional_reward", default= False)
-    parser.add_argument("--add_bc", default= True)
+    parser.add_argument("--add_additional_reward", default= False, action="store_true")
+    parser.add_argument("--add_bc", default= True, action="store_true")
     parser.add_argument("--gpu_id", default= "0")
-    parser.add_argument("--is_crop", default=False)
+    parser.add_argument("--is_crop", default=False, action="store_true")
     parser.add_argument("--train_subtask", default=False)
     parser.add_argument("--crop_image_size", default=(768, 768))
     parser.add_argument("--camera_heights", type=int, nargs='+', default=[1536, 1536, 1536, 1536])
@@ -113,14 +113,15 @@ class PickPlaceSimulation(RealInSimulation):
             done = self.is_pickplace_done_from_sim(info, action)
         info['is_success'] = False
         reward = self.update_reward(info, action)
-        if self.robot_collisions or info['robot_limits']:
-            print("collision")
-            return obs, -10, True, info
-        if done:
-            info['is_success'] = True
+        # if self.robot_collisions or info['robot_limits']:
+        #     print("collision")
+        #     return obs, -10, True, info
         if info["truncation"] == True:
             if self.env_info['add_additional_reward']:
                 reward += self.update_done_additional_reward()
+        if done:
+            info['is_success'] = True
+            return obs, reward, True, info
         return obs, reward, False, info
     
     def update_reward_online(self, action):
@@ -212,23 +213,33 @@ class PickPlaceSimulation(RealInSimulation):
         return max_reward
 
     def update_reward(self, info, action):
+        reaching_reward = 0
         grasp_reward = 0
-        if self.is_grasp_done_from_sim(info, action):
-            grasp_reward += 10
-            dist1 = info["subtask1"]
-            dist = dist1
-            reaching_reward = 1 - np.tanh(4 * dist)
+        place_reward = 0
+        dist_to_object_0 = info["gripper_apple"]
+        dist_to_target_1 = info["subtask1"]
+        dist_to_object = dist_to_object_0 + dist_to_target_1
+        if self.last_dist_to_object is None:
+            self.last_dist_to_object = dist_to_object
+            return 0
+        place_reward += 1 - np.tanh(5 * dist_to_target_1)
+        reaching_reward += 1 - np.tanh(5 * dist_to_object_0)
+        distance_change = self.last_dist_to_object - dist_to_object
+        self.last_dist_to_object = dist_to_object
+        if distance_change >= 0:
+            reaching_reward += 1
         else:
-            dist0 = info["subtask0"]
-            dist1 = info["subtask1"]
-            dist = dist0 + dist1
-            reaching_reward = 1 - np.tanh(4 * dist)
+            reaching_reward -= 1
+        if self.is_grasp_done_from_sim(info, action):
+            grasp_reward += 20
         if self.is_pickplace_done_from_sim(info, action):
-            if self.env_info['add_additional_reward']:
-                grasp_reward = 10 + self.update_done_additional_reward()
-            else:
-                grasp_reward = 100
-        return reaching_reward + grasp_reward
+            place_reward += 20
+        else:
+            if info["subtask1"] < 0.05:
+                place_reward += 1
+        total_reward = reaching_reward * 10 + grasp_reward + place_reward
+        return total_reward
+
 
     def is_grasp_from_sim(self, info, action):
         if not self.ask_grasp and not self.grasp_flag and (self.last_action is not None and self.last_action[-1] == -1 and action[-1] == 1):
@@ -238,8 +249,8 @@ class PickPlaceSimulation(RealInSimulation):
             self.ask_grasp = True
 
     def is_pickplace_done_from_sim(self, info, action):
-        if action[-1] == -1 and self.grasp_flag and (self.sub_task_idx==1) and (
-            0.15 > info["gripper_bowl"]
+        if action[-1] == -1 and (self.sub_task_idx==1) and (
+            0.15 > info["gripper_bowl"] and info['subtask1'] < 0.11
             ):
             return True
         else:
@@ -258,6 +269,7 @@ class PickPlaceSimulation(RealInSimulation):
         self.last_info = None
         self.grasp_flag = False
         self.ask_grasp = False
+        self.last_dist_to_object = None
         self.last_frame = []
         observation = super().reset()
         if self.env_info['is_crop']:
@@ -346,10 +358,10 @@ def set_params(args):
     "num_updates": 1,
     "model_dir": None,
     "model_step": 40000,
-    "agent_name": "dino_e2c_sac",
+    "agent_name": "rad_sac",
     "init_steps": 2000,
     "num_train_steps": 350000,
-    "bc_train_steps": 10,
+    "bc_train_steps": 30,
     "batch_size": 128,
     "hidden_dim": 1024,
     "eval_freq": 1000,
@@ -382,7 +394,7 @@ def set_params(args):
     "v_clip_low": -100,
     "v_clip_high": 100,
     "action_noise": None,
-    "final_demo_density": None,
+    "final_demo_density": 0.6,
     "data_augs": "center_crop",
     "log_interval": 200,
     "conv_layer_norm": True,
@@ -405,8 +417,10 @@ def trainer(args):
                         camera_heights=env_info['camera_heights'],
                         camera_widths=env_info['camera_widths'],
                         camera_names=env_info['camera_names'],)
-    # policy = FewDemoPolicy(env, torch.device("cuda"), policy_params)
-    policy = BCSACPolicy(env, torch.device("cuda"), policy_params)
+    if args.add_bc:
+        policy = BCSACPolicy(env, torch.device("cuda"), policy_params)
+    else:
+        policy = FewDemoPolicy(env, torch.device("cuda"), policy_params)
     policy.train()
 
 if __name__ == "__main__":
@@ -452,11 +466,11 @@ if __name__ == "__main__":
     #         # step_action[:3] = step_action[:3] * 100
     #         obs, reward, done, info = env.step(step_action)
     #         # cv2.imshow("test", np.transpose(obs, (1, 2, 0))[:,:,::-1])
-    #         cv2.imshow("test", np.transpose(np.array(demo_obs[step]), (1, 2, 0))[:,:,::-1])
-    #         cv2.waitKey(1)
+    #         # cv2.imshow("test", np.transpose(np.array(demo_obs[step]), (1, 2, 0))[:,:,::-1])
+    #         # cv2.waitKey(1)
     #         print("reward", reward)
     #         print("done", done)
-    #         print("info", info)
+    #         # print("info", info)
     # env.close()
 
     

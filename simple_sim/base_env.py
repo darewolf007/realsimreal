@@ -129,8 +129,8 @@ class SimpleEnv(ManipulationEnv):
     def object_initializer(self):
         for obj in self.scene_objects:
             idx = self.env_info['obj_info']['labels'].index(obj.name)
-            obj_position = self.env_info['obj_info']['poses'][idx][:3]
-            obj_quat = self.env_info['obj_info']['poses'][idx][3:]
+            obj_position = self.env_info['obj_info']['poses'][idx][:3].copy()
+            obj_quat = self.env_info['obj_info']['poses'][idx][3:].copy()
             if self.env_info['init_noise']:
                 obj_position[:2] += np.random.uniform(self.env_info['init_translation_noise_bounds'][0], self.env_info['init_translation_noise_bounds'][1], size=2)
                 obj_quat = add_noise_to_rotation_z(obj_quat, self.env_info['init_rotation_noise_bounds'])
