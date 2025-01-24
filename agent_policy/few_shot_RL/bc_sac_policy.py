@@ -186,6 +186,7 @@ class BCSACPolicy:
                     with policy_utils.eval_mode(agent):
                         action = agent.sample_action(obs, task_text_token)
                         action[3:-1] = np.array([0,0,0])
+                        action[0:3] = action[0:3] + np.random.uniform(-0.7, 0.5, size=3)
                 # else:
                 #     action = self.env.action_space.sample()
                 #     action[3:-1] = np.array([0,0,0])

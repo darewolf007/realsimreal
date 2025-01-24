@@ -228,14 +228,14 @@ class PickBananaSimulation(RealInSimulation):
 
     def is_grasp_from_sim(self, info, action):
         if not self.ask_grasp and not self.grasp_flag and (self.last_action is not None and self.last_action[-1] == -1 and action[-1] == 1):
-            if info["gripper_banana"] < 0.06:
+            if info["gripper_banana"] < 0.05:
                 self.grasp_flag = True
             self.ask_grasp = True
 
     def is_grasp_done_from_sim(self, info, action):
         if action[-1] == 1 and (
             0.1 > info["delta_gripper"] and info["delta_gripper"] > 0.04) and (
-                info["gripper_banana"] < 0.06
+                info["gripper_banana"] < 0.05
             ):
             return True
         else:
@@ -401,4 +401,50 @@ def trainer(args):
 
 if __name__ == "__main__":
     args = parse_args()
-    trainer(args)
+    # trainer(args)
+    env_info, policy_params = set_params(args)
+    env = PickBananaSimulation("UR5e",
+                        env_info,
+                        has_renderer=True,
+                        has_offscreen_renderer=True,
+                        render_camera=env_info['camera_names'][0],
+                        ignore_done=True,
+                        use_camera_obs=True,
+                        camera_depths=env_info['camera_depths'],
+                        control_freq=env_info['control_freq'],
+                        renderer="mjviewer",
+                        camera_heights=env_info['camera_heights'],
+                        camera_widths=env_info['camera_widths'],
+                        camera_names=env_info['camera_names'],)
+    
+    pt_data_path = env_info['replay_buffer_load_dir']
+    chunks = os.listdir(pt_data_path)
+    chunks = [c for c in chunks if c[-3:] == ".pt"]
+    chucks = sorted(chunks, key=lambda x: int(x.split("_")[0]))
+    path = os.path.join(pt_data_path, chucks[0])
+    payload = torch.load(path)
+    obses = payload[0]
+    actions = payload[2]
+    actions[:,:3] = actions[:,:3] * 100
+    demo_starts = np.load(os.path.join(pt_data_path, "demo_starts.npy"))
+    demo_ends = np.load(os.path.join(pt_data_path, "demo_ends.npy"))
+    # traj_path = os.path.join("/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/20_crop_pour_can_new/Pour can into a cup9/data")
+    # files = sorted(os.listdir(traj_path), key=lambda x: int(x.split(".")[0]))
+    env.reset()
+    for i in range(len(demo_starts)):
+        env.reset()
+        start = demo_starts[i]
+        end = demo_ends[i]
+        traj_action = actions[start:end]
+        demo_obs =obses[start:end]
+        for step in range(traj_action.shape[0]):
+            step_action = np.array(traj_action[step])
+            # step_action[:3] = step_action[:3] * 100
+            obs, reward, done, info = env.step(step_action)
+            # cv2.imshow("test", np.transpose(obs, (1, 2, 0))[:,:,::-1])
+            # cv2.imshow("test", np.transpose(np.array(demo_obs[step]), (1, 2, 0))[:,:,::-1])
+            # cv2.waitKey(1)
+            print("reward", reward)
+            print("done", done)
+            # print("info", info)
+    env.close()
