@@ -97,3 +97,51 @@ class MarkerObject(MujocoXMLObject):
             obj_type="all",
             duplicate_collision_geoms=True,
         )
+
+class MustardObject(MujocoXMLObject):
+    def __init__(self, name):
+        base_path = os.path.dirname(os.path.realpath(__file__))
+        obj_xml = os.path.join(base_path, "../asset/know/mustard.xml")
+        super().__init__(
+            xml_path_completion(obj_xml),
+            name=name,
+            joints=[dict(type="free", damping="0.01")],
+            obj_type="all",
+            duplicate_collision_geoms=True,
+        )
+
+class PenHolderObject(MujocoXMLObject):
+    def __init__(self, name):
+        base_path = os.path.dirname(os.path.realpath(__file__))
+        obj_xml = os.path.join(base_path, "../asset/know/pen_holder.xml")
+        super().__init__(
+            xml_path_completion(obj_xml),
+            name=name,
+            joints=None,
+            obj_type="visual",
+            duplicate_collision_geoms=True,
+        )
+
+class StopButtonObject(MujocoXMLObject):
+    def __init__(self, name):
+        base_path = os.path.dirname(os.path.realpath(__file__))
+        obj_xml = os.path.join(base_path, "../asset/know/stop_button.xml")
+        super().__init__(
+            xml_path_completion(obj_xml),
+            name=name,
+            joints=None,
+            obj_type="visual",
+            duplicate_collision_geoms=True,
+        )
+
+class BlueCanObject(MujocoXMLObject):
+    def __init__(self, name):
+        base_path = os.path.dirname(os.path.realpath(__file__))
+        obj_xml = os.path.join(base_path, "../asset/know/blue_can.xml")
+        super().__init__(
+            xml_path_completion(obj_xml),
+            name=name,
+            joints=[dict(type="free", damping="0.01")],
+            obj_type="all",
+            duplicate_collision_geoms=True,
+        )

@@ -28,18 +28,19 @@ def get_latest_model_step(model_dir):
 class BCSACPolicy:
     def __init__(
         self,
-        env,
-        device,
-        params,
+        env = None,
+        device = "cuda",
+        params = None,
     ):
         self.device = device
         self.params = params
         self.env = env
-        self.L = Logger(self.params['work_dir'], use_tb=self.params['save_tb'])
-        video_dir = policy_utils.make_dir(os.path.join(self.params['work_dir'], "video"))
-        self.model_dir = policy_utils.make_dir(os.path.join(self.params['work_dir'], "model"))
-        self.buffer_dir = policy_utils.make_dir(os.path.join(self.params['work_dir'], "buffer"))
-        self.video = VideoRecorder(video_dir if self.params['save_video'] else None, camera_id=self.params['cameras'][0])
+        if self.params['work_dir'] is not None:
+            self.L = Logger(self.params['work_dir'], use_tb=self.params['save_tb'])
+            video_dir = policy_utils.make_dir(os.path.join(self.params['work_dir'], "video"))
+            self.model_dir = policy_utils.make_dir(os.path.join(self.params['work_dir'], "model"))
+            self.buffer_dir = policy_utils.make_dir(os.path.join(self.params['work_dir'], "buffer"))
+            self.video = VideoRecorder(video_dir if self.params['save_video'] else None, camera_id=self.params['cameras'][0])
         self.init_tokenize()
     
     def init_agent(self, agent_class, obs_shape, action_shape):
@@ -93,8 +94,25 @@ class BCSACPolicy:
             raise NotImplementedError
         return agent_class
 
-    def get_action(self, obs, task_text_token):
-        action = self.agent.sample_action(obs, task_text_token)
+    def init_policy(self, agent_name, action_shape, model_dir):
+        policy_utils.set_seed_everywhere(self.params['seed'])
+        if self.params['encoder_type'] == "pixel" or self.params['encoder_type'] == "dino":
+            cpf = 3 * len(self.params['cameras'])
+            obs_shape = (cpf * self.params['frame_stack'], self.params['image_size'], self.params['image_size'])
+            pre_aug_obs_shape = (
+                cpf * self.params['frame_stack'],
+                self.params['pre_transform_image_size'],
+                self.params['pre_transform_image_size'],
+            )
+        agent = self.init_agent(self.choose_agent(agent_name), obs_shape, action_shape)
+        model_step = get_latest_model_step(model_dir)
+        agent.load(model_dir, model_step)
+        return agent
+    
+    def get_action(self, agent, obs, task_text_token = None):
+        with policy_utils.eval_mode(agent):
+            action = agent.select_action(obs,task_text_token)
+        return action
 
     def train(self):
         IL_agent_name = "rad_sac"

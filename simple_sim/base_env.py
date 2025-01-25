@@ -16,7 +16,14 @@ from robosuite.utils.mjcf_utils import (
     recolor_collision_geoms,
     string_to_array,
 )
-from simple_sim.know_obj.xml_obj import CanObject, KettleObject, CupObject, BananaObject, AppleObject, BowlObject
+from simple_sim.know_obj.xml_obj import (
+    CanObject, KettleObject, 
+    CupObject, BananaObject, 
+    AppleObject, BowlObject, 
+    MustardObject, MarkerObject,
+    PenHolderObject, BlueCanObject,
+    StopButtonObject
+)
 from simple_sim.external_area import ExternalArea
 from simple_sim.sim_utils import add_noise_to_rotation_z
 KNOW_OBJ = {"can": CanObject,
@@ -24,7 +31,13 @@ KNOW_OBJ = {"can": CanObject,
               "cup": CupObject,
               "banana": BananaObject,
               "apple": AppleObject,
-              "bowl": BowlObject}
+              "bowl": BowlObject,
+              "mustard": MustardObject,
+              "marker": MarkerObject,
+              "pen_holder": PenHolderObject,
+              "blue_can": BlueCanObject,
+              "stop_button": StopButtonObject
+              }
 
 class SimpleEnv(ManipulationEnv):
     def __init__(

@@ -1,6 +1,6 @@
 <mujoco model="marker">
   <asset>
-    <mesh name="my_object" file="meshes/marker/textured.obj" scale = "1.0 1.0 1.0"/>
+    <mesh name="my_object" file="meshes/marker/textured.obj" scale = "1.3 1.3 1.0"/>
     <texture file="meshes/marker/texture_map.png" name="tex-can" type="2d"/>
     <material name="coke" reflectance="0.7" texrepeat="5 5" texture="tex-can" texuniform="true"/>
   </asset>
