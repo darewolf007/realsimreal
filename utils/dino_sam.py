@@ -280,8 +280,8 @@ def detect(
     """
     device = "cuda" if torch.cuda.is_available() else "cpu"
     detector_id = detector_id if detector_id is not None else "IDEA-Research/grounding-dino-tiny"
-    processor = AutoProcessor.from_pretrained(model_id)
-    model = AutoModelForZeroShotObjectDetection.from_pretrained(model_id).to(device)
+    # processor = AutoProcessor.from_pretrained(model_id)
+    # model = AutoModelForZeroShotObjectDetection.from_pretrained(model_id).to(device)
     object_detector = pipeline(model=detector_id, task="zero-shot-object-detection", device=device)
 
     labels = [label if label.endswith(".") else label+"." for label in labels]
