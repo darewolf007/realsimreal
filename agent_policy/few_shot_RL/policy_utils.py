@@ -248,6 +248,10 @@ class ReplayBuffer(Dataset):
             self.keep_loaded_end = end
         # action is m, too small, conver to cm
         self.actions[:,:3] *= 100
+        self.xyz_mean = np.mean(self.actions[:end, :3], axis=0, keepdims=True)
+        self.xyz_std = np.std(self.actions[:end, :3], axis=0, keepdims=True)
+        self.xyz_std[self.xyz_std == 0] = 1.0
+        self.actions[:end, :3] = (self.actions[:end, :3] - self.xyz_mean) / self.xyz_std
         self.demo_starts = np.load(os.path.join(save_dir, "demo_starts.npy"))
         self.demo_ends = np.load(os.path.join(save_dir, "demo_ends.npy"))
 

@@ -47,6 +47,7 @@ class PickBananaSimulation(RealInSimulation):
         self.grasp_demo_embedding = []
         self.done_demo_embedding = []
         self.last_info = None
+        self.gripper_change_num = 0
         if self.env_info['add_additional_reward']:
             self.init_vido_embedding()
             self.pre_process_pt()
@@ -228,9 +229,9 @@ class PickBananaSimulation(RealInSimulation):
         grasp_reward = 0
         if (self.last_action is not None and self.last_action[-1] == -1 and action[-1] == 1):
             if info["gripper_banana"] > 0.07:
-                grasp_reward = -5
+                self.gripper_change_num += 1
         if self.is_grasp_done_from_sim(info, action):
-            grasp_reward = 100 
+            grasp_reward = 100 - self.gripper_change_num * 10
         return reaching_reward + grasp_reward
         # return -1 + grasp_reward
 
@@ -261,6 +262,7 @@ class PickBananaSimulation(RealInSimulation):
         else:
             obs = resize_image(observation['sceneview_image'], 1/12)
         obs = np.transpose(obs, (2, 0, 1))
+        self.gripper_change_num = 0
         return obs
 
 def set_params(args):

@@ -232,7 +232,9 @@ class BCSACPolicy:
 
             time_start = time.time()
 
-            next_obs, reward, done, info = self.env.step(action)
+            real_action = np.copy(action)
+            real_action[:3] =  action[:3]* agent.replay_buffer.xyz_std[0] + agent.replay_buffer.xyz_mean[0]
+            next_obs, reward, done, info = self.env.step(real_action)
             task_text_token = self.subtask_promot_tokens[self.env.sub_task_idx]
             time_acting += time.time() - time_start
 
@@ -369,7 +371,9 @@ class BCSACPolicy:
                         action = agent.sample_action(obs, task_text_token)
                     else:
                         action = agent.select_action(obs,task_text_token)
-                obs, reward, done, info = self.env.step(action)
+                real_action = np.copy(action)
+                real_action[:3] =  action[:3]* agent.replay_buffer.xyz_std[0] + agent.replay_buffer.xyz_mean[0]
+                obs, reward, done, info = self.env.step(real_action)
                 task_text_token = self.subtask_promot_tokens[self.env.sub_task_idx]
                 if done:
                     episode_success = True
