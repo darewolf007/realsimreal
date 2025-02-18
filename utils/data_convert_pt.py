@@ -39,7 +39,8 @@ def convert_pickles_to_pt(data_dir, output_path, crop):
                         if not data['not_dones']:
                             all_rewards.append(data['rewards'])
                         else:
-                            all_rewards.append(-1)
+                            # all_rewards.append(-1)
+                            all_rewards.append(data['rewards'])
                     all_not_dones.append(data['not_dones'])
                     all_subtask_id.append(data['subtask_id'])
                     all_now_qpos.append(data['now_qpos'])
@@ -106,12 +107,12 @@ def convert_real_to_pt(data_dir, output_path):
     np.save(os.path.join(output_path, "demo_starts.npy"), demo_ends)
 
 if __name__ == "__main__":
-    data_name = "absulote_banana"
+    data_name = "dense_banana"
     if "crop" in data_name:
         crop = 1/6
     else:
         crop = 1/12
-    data_dir = "/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/" + data_name
+    data_dir = "/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/dense/" + data_name
     output_path = "/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/pt_data/" 
     pt_output_path = output_path + data_name
     if os.path.exists(pt_output_path):

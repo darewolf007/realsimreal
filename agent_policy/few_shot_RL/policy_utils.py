@@ -73,7 +73,7 @@ class ReplayBuffer(Dataset):
         self.obses = np.empty((capacity, *obs_shape), dtype=obs_dtype)
         self.next_obses = np.empty((capacity, *obs_shape), dtype=obs_dtype)
         self.actions = np.zeros((capacity, *action_shape), dtype=np.float32)
-        self.rewards = np.empty((capacity, 1), dtype=np.float32)
+        self.rewards = np.zeros((capacity, 1), dtype=np.float32)
         self.not_dones = np.empty((capacity, 1), dtype=bool)
 
         self.idx = 0

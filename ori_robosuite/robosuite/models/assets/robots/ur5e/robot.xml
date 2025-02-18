@@ -103,7 +103,7 @@
                     <site name="attachment_site" size="0.01" pos="0 0.1 0" quat=" -0.70704592 0.70716083 -0.00282909  0.00127045" rgba="1 0 0 1" group="1"/>
                     <body name="right_hand" pos="0 0.098 0" quat="0.707 -0.707 0 0">
                       <!-- This camera points out from the eef. -->
-                      <camera mode="fixed" name="eye_in_hand" pos="0.05 0 0" quat="0 0.707108 0.707108 0" fovy="75"/>
+                      <camera mode="fixed" name="eye_in_hand" pos="0 -0.05 0" quat="0 0 1 0" fovy="75"/>
                       <!-- To add gripper -->
                     </body>
                   </body>

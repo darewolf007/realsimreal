@@ -165,6 +165,10 @@ class BCSACPolicy:
         model_dir = self.model_dir
         model_step = get_latest_model_step(model_dir)
         agent.load(model_dir, model_step)
+        sample_agent = self.init_agent(self.choose_agent(RL_agent_name), obs_shape, action_shape)
+        model_dir = self.model_dir
+        model_step = get_latest_model_step(model_dir)
+        sample_agent.load(model_dir, model_step)
         episode, episode_reward, done = 0, 0, True
         start_time = time.time()
         time_computing = 0
@@ -199,19 +203,19 @@ class BCSACPolicy:
                 self.L.log("train/episode", episode, step)
 
             # sample action for data collection
-            if self.params['init_steps'] is not None:
-                if step < self.params['init_steps']:
-                    with policy_utils.eval_mode(agent):
-                        action = agent.sample_action(obs, task_text_token)
-                        action[3:-1] = np.array([0,0,0])
-                        action[0:3] = action[0:3] + np.random.uniform(-0.7, 0.5, size=3)
+            # if self.params['init_steps'] is not None:
+            if step < self.params['init_steps']:
+                with policy_utils.eval_mode(agent):
+                    action = sample_agent.sample_action(obs, task_text_token)
+                    action[3:-1] = np.array([0,0,0])
+                    action[0:3] = action[0:3] + np.random.uniform(-0.2, 0.2, size=3)
                 # else:
                 #     action = self.env.action_space.sample()
                 #     action[3:-1] = np.array([0,0,0])
             else:
                 with policy_utils.eval_mode(agent):
                     action = agent.sample_action(obs, task_text_token)
-                    action[3:-1] = np.array([0,0,0])
+                    # action[3:-1] = np.array([0,0,0])
 
             # run training update
             time_start = time.time()
@@ -302,7 +306,7 @@ class BCSACPolicy:
                 pred_action, pi, log_pi, log_std = agent.actor(obs, detach_encoder=True)
                 # actor_loss = ((pred_action - gt_action)**2).mean() * 100
                 pos_rot_loss = ((pred_action[:, :6] - gt_action[:, :6])**2).mean() * 100
-                gripper_loss = ((pred_action[:, 6:] - gt_action[:, 6:])**2).mean() * 200
+                gripper_loss = ((pred_action[:, 6:] - gt_action[:, 6:])**2).mean() * 400
                 actor_loss = pos_rot_loss + gripper_loss
                 agent.actor_optimizer.zero_grad()
                 actor_loss.backward()
@@ -369,9 +373,8 @@ class BCSACPolicy:
                 task_text_token = self.subtask_promot_tokens[self.env.sub_task_idx]
                 if done:
                     episode_success = True
-                    break
                 if episode_step + 1 == self.env.all_task_max_num:
-                    break
+                    done = True
                 episode_step += 1
                 self.video.record(self.env)
                 episode_reward += reward
