@@ -16,10 +16,9 @@ from pre_train.s3d.s3dg import S3D
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--task_name", default="Pick up banana30_1")
-    # parser.add_argument("--dataset_name", default="dense_banana")
+    parser.add_argument("--task_name", default="Pick up banana20")
     parser.add_argument("--dataset_name", default="pick up banana")
-    parser.add_argument("--task_max_step", type=int, default= 40)
+    parser.add_argument("--task_max_step", type=int, default= 20)
     parser.add_argument("--add_additional_reward", default= False, action="store_true")
     parser.add_argument("--add_bc", default= True, action="store_true")
     parser.add_argument("--gpu_id", default= "0")
@@ -48,7 +47,6 @@ class PickBananaSimulation(RealInSimulation):
         self.grasp_demo_embedding = []
         self.done_demo_embedding = []
         self.last_info = None
-        self.gripper_change_num = 0
         if self.env_info['add_additional_reward']:
             self.init_vido_embedding()
             self.pre_process_pt()
@@ -104,10 +102,13 @@ class PickBananaSimulation(RealInSimulation):
         self.is_grasp_from_sim(self.last_info, action)
         next_observation, _, _, info = super().multi_step(action, self.env_info['use_delta'], use_joint_controller, is_collect=True, step_num=1, use_euler= self.env_info['use_euler'])
         self.last_info = info
+        image = []
         if self.env_info['is_crop']:
             obs = resize_image(next_observation['crop_sceneview_image'], 1/6)
         else:
-            obs = resize_image(next_observation['sceneview_image'], 1/12)
+            image.append(resize_image(next_observation["sceneview_image"], 1/12))
+            image.append(resize_image(next_observation["robot0_eye_in_hand_image"], 1/12))
+            obs = np.concatenate(image, axis=-1).astype("uint8")
         obs = np.transpose(obs, (2, 0, 1))
         self.last_frame.append(obs)
         if self.env_info["train_subtask"]:
@@ -224,16 +225,11 @@ class PickBananaSimulation(RealInSimulation):
             delta_dist = self.last_dist - dist
         self.last_dist = dist
         reaching_reward = delta_dist * 10 - 0.5 * dist
-        # if info["gripper_banana"] < 0.06:
-        #     reaching_reward += 2
-        reaching_reward = (- info["gripper_banana"]) * 10
+        if info["gripper_banana"] < 0.06:
+            reaching_reward += 2
         grasp_reward = 0
-        if (self.last_action is not None and self.last_action[-1] == -1 and action[-1] == 1):
-            if info["gripper_banana"] > 0.07:
-                self.gripper_change_num += 1
         if self.is_grasp_done_from_sim(info, action):
-            grasp_reward = 100 - self.gripper_change_num * 10
-        # return reaching_reward + grasp_reward
+            grasp_reward = 100 
         return -1 + grasp_reward
 
     def is_grasp_from_sim(self, info, action):
@@ -258,12 +254,15 @@ class PickBananaSimulation(RealInSimulation):
         self.ask_grasp = False
         self.last_frame = []
         observation = super().reset()
+        image = []
         if self.env_info['is_crop']:
             obs = resize_image(observation['crop_sceneview_image'], 1/6)
         else:
-            obs = resize_image(observation['sceneview_image'], 1/12)
+            image.append(resize_image(observation["sceneview_image"], 1/12))
+            image.append(resize_image(observation["robot0_eye_in_hand_image"], 1/12))
+            obs = np.concatenate(image, axis=-1).astype("uint8")
+            # obs = resize_image(observation['sceneview_image'], 1/12)
         obs = np.transpose(obs, (2, 0, 1))
-        self.gripper_change_num = 0
         return obs
 
 def set_params(args):
@@ -303,7 +302,7 @@ def set_params(args):
     env_info['crop_image_size'] = args.crop_image_size
     env_info['camera_heights'] = args.camera_heights
     env_info['camera_widths'] = args.camera_widths
-    env_info['camera_names'] = ["sceneview", "birdview", "frontview", "rightview"]
+    env_info['camera_names'] = ["sceneview", "birdview", "frontview", "rightview", "robot0_eye_in_hand"]
     env_info['has_renderer'] = False
     env_info['control_freq'] = 20
     env_info['use_joint_controller'] = False
@@ -321,8 +320,8 @@ def set_params(args):
         env_info['camera_heights'] = [768*2, 1536, 1536, 1536]
         env_info['camera_widths'] = [2048, 2048, 2048, 2048]
     else:
-        env_info['camera_heights'] = [768*2, 1536, 1536, 1536]
-        env_info['camera_widths'] = [2048, 2048, 2048, 2048]
+        env_info['camera_heights'] = [768*2, 1536, 1536, 1536, 1536]
+        env_info['camera_widths'] = [2048, 2048, 2048, 2048, 2048]
     replay_buffer_load_dir = replay_data_save_path + args.dataset_name
     env_info['replay_buffer_load_dir'] = replay_buffer_load_dir
 
@@ -346,20 +345,20 @@ def set_params(args):
     "model_dir": None,
     "model_step": 40000,
     "agent_name": "rad_sac",
-    "init_steps": 3000,
-    "num_train_steps": 120000,
+    "init_steps": 0,
+    "num_train_steps": 250000,
     "bc_train_steps": 20,
     "batch_size": 128,
     "hidden_dim": 1024,
     "eval_freq": 1000,
     "num_eval_episodes": 2,
-    "critic_lr": 0.001,
+    "critic_lr": 0.01,
     "critic_beta": 0.9,
     "critic_tau": 0.01,
     "critic_target_update_freq": 2,
-    "actor_lr": 0.001,
+    "actor_lr": 0.0001,
     "actor_beta": 0.9,
-    "actor_log_std_min": -10,
+    "actor_log_std_min": -2,
     "actor_log_std_max": 2,
     "actor_update_freq": 2,
     "encoder_type": "pixel",
@@ -370,7 +369,7 @@ def set_params(args):
     "latent_dim": 128,
     "discount": 0.99,
     "init_temperature": 0.1,
-    "alpha_lr": 1e-4,
+    "alpha_lr": 1e-5,
     "alpha_beta": 0.5,
     "seed": 1,
     "save_tb": True,
@@ -378,8 +377,8 @@ def set_params(args):
     "save_video": True,
     "save_sac": True,
     "detach_encoder": False,
-    "v_clip_low": -100,
-    "v_clip_high": 100,
+    "v_clip_low": -10,
+    "v_clip_high": 10,
     "action_noise": None,
     "final_demo_density": 0.2,
     "data_augs": "center_crop",
@@ -412,50 +411,50 @@ def trainer(args):
 
 if __name__ == "__main__":
     args = parse_args()
-    trainer(args)
-    # env_info, policy_params = set_params(args)
-    # env = PickBananaSimulation("UR5e",
-    #                     env_info,
-    #                     has_renderer=True,
-    #                     has_offscreen_renderer=True,
-    #                     render_camera=env_info['camera_names'][0],
-    #                     ignore_done=True,
-    #                     use_camera_obs=True,
-    #                     camera_depths=env_info['camera_depths'],
-    #                     control_freq=env_info['control_freq'],
-    #                     renderer="mjviewer",
-    #                     camera_heights=env_info['camera_heights'],
-    #                     camera_widths=env_info['camera_widths'],
-    #                     camera_names=env_info['camera_names'],)
+    # trainer(args)
+    env_info, policy_params = set_params(args)
+    env = PickBananaSimulation("UR5e",
+                        env_info,
+                        has_renderer=True,
+                        has_offscreen_renderer=True,
+                        render_camera=env_info['camera_names'][0],
+                        ignore_done=True,
+                        use_camera_obs=True,
+                        camera_depths=env_info['camera_depths'],
+                        control_freq=env_info['control_freq'],
+                        renderer="mjviewer",
+                        camera_heights=env_info['camera_heights'],
+                        camera_widths=env_info['camera_widths'],
+                        camera_names=env_info['camera_names'],)
     
-    # pt_data_path = env_info['replay_buffer_load_dir']
-    # chunks = os.listdir(pt_data_path)
-    # chunks = [c for c in chunks if c[-3:] == ".pt"]
-    # chucks = sorted(chunks, key=lambda x: int(x.split("_")[0]))
-    # path = os.path.join(pt_data_path, chucks[0])
-    # payload = torch.load(path)
-    # obses = payload[0]
-    # actions = payload[2]
-    # actions[:,:3] = actions[:,:3] * 100
-    # demo_starts = np.load(os.path.join(pt_data_path, "demo_starts.npy"))
-    # demo_ends = np.load(os.path.join(pt_data_path, "demo_ends.npy"))
-    # # traj_path = os.path.join("/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/20_crop_pour_can_new/Pour can into a cup9/data")
-    # # files = sorted(os.listdir(traj_path), key=lambda x: int(x.split(".")[0]))
-    # env.reset()
-    # for i in range(len(demo_starts)):
-    #     env.reset()
-    #     start = demo_starts[i]
-    #     end = demo_ends[i]
-    #     traj_action = actions[start:end]
-    #     demo_obs =obses[start:end]
-    #     for step in range(traj_action.shape[0]):
-    #         step_action = np.array(traj_action[step])
-    #         # step_action[:3] = step_action[:3] * 100
-    #         obs, reward, done, info = env.step(step_action)
-    #         # cv2.imshow("test", np.transpose(obs, (1, 2, 0))[:,:,::-1])
-    #         # cv2.imshow("test", np.transpose(np.array(demo_obs[step]), (1, 2, 0))[:,:,::-1])
-    #         # cv2.waitKey(1)
-    #         print("reward", reward)
-    #         print("done", done)
-    #         # print("info", info)
-    # env.close()
+    pt_data_path = env_info['replay_buffer_load_dir']
+    chunks = os.listdir(pt_data_path)
+    chunks = [c for c in chunks if c[-3:] == ".pt"]
+    chucks = sorted(chunks, key=lambda x: int(x.split("_")[0]))
+    path = os.path.join(pt_data_path, chucks[0])
+    payload = torch.load(path)
+    obses = payload[0]
+    actions = payload[2]
+    actions[:,:3] = actions[:,:3] * 100
+    demo_starts = np.load(os.path.join(pt_data_path, "demo_starts.npy"))
+    demo_ends = np.load(os.path.join(pt_data_path, "demo_ends.npy"))
+    # traj_path = os.path.join("/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/20_crop_pour_can_new/Pour can into a cup9/data")
+    # files = sorted(os.listdir(traj_path), key=lambda x: int(x.split(".")[0]))
+    env.reset()
+    for i in range(len(demo_starts)):
+        obs = env.reset()
+        start = demo_starts[i]
+        end = demo_ends[i]
+        traj_action = actions[start:end]
+        demo_obs =obses[start:end]
+        for step in range(traj_action.shape[0]):
+            step_action = np.array(traj_action[step])
+            # step_action[:3] = step_action[:3] * 100
+            obs, reward, done, info = env.step(step_action)
+            # cv2.imshow("test", np.transpose(obs, (1, 2, 0))[:,:,::-1])
+            # cv2.imshow("test", np.transpose(np.array(demo_obs[step]), (1, 2, 0))[:,:,::-1])
+            # cv2.waitKey(1)
+            print("reward", reward)
+            print("done", done)
+            # print("info", info)
+    env.close()
