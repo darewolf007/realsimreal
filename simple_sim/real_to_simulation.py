@@ -171,7 +171,8 @@ class RealInSimulation:
             processed_depth_map = np.clip(depth_map, 0.0, 3.0)
             new_observations['sceneview_depth'] = processed_depth_map
             if is_collect:
-                cv2.imwrite(self.task_data_path + '/depth_' + "sceneview" + "/" + str(step) + ".png", processed_depth_map)
+                np.save(self.task_data_path + '/depth_' + "sceneview" + "/" + str(step) + '.npy', processed_depth_map.astype(np.float16))
+                # cv2.imwrite(self.task_data_path + '/depth_' + "sceneview" + "/" + str(step) + ".png", processed_depth_map)
         if is_crop:
             site_name = target_obj + "_center_site"
             obj_pos = self.env.sim.data.get_site_xpos(site_name).copy()
