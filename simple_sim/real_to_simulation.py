@@ -5,15 +5,16 @@ import pickle
 import numpy as np
 import sys
 sys.path.insert(0, os.getcwd())
+import gymnasium as gym
 import robosuite.utils.camera_utils as CU
-from simple_sim.base_env import SimpleEnv
-from simple_sim.robotic_ik import mink_ik
+from simple_sim.sim_utils.base_env import SimpleEnv
+from simple_sim.sim_utils.robotic_ik import mink_ik
 from scipy.spatial.transform import Rotation as R
-from simple_sim.sim_utils import transform_to_camera_frame, matrix_to_translation_quaternion, get_handeye_T
-from simple_sim.sim_utils import quaternion_to_matrixT, adjust_orientation_to_z_up, crop_image, get_7Dof_pose, count_files_in_directory
-from simple_sim.sim_utils import euler_to_quaternion, quaternion_to_euler
-from simple_sim.motion_planning import MotionPlanning
-from simple_sim.camera_util import get_real_depth_map
+from simple_sim.sim_utils.sim_util import transform_to_camera_frame, matrix_to_translation_quaternion, get_handeye_T
+from simple_sim.sim_utils.sim_util import quaternion_to_matrixT, adjust_orientation_to_z_up, crop_image, get_7Dof_pose, count_files_in_directory
+from simple_sim.sim_utils.sim_util import euler_to_quaternion, quaternion_to_euler
+from simple_sim.sim_utils.motion_planning import MotionPlanning
+from simple_sim.sim_utils.camera_util import get_real_depth_map
 
 class RealInSimulation:
     def __init__(self, robot, env_info, has_renderer, *args, **kwargs):
@@ -34,6 +35,16 @@ class RealInSimulation:
         self.init_motion_planning()
         self.env = SimpleEnv(robot, env_info, has_renderer = has_renderer, *args, **kwargs)
         self.init_invese_kinematics()
+        self.init_action_space()
+
+    def init_action_space(self):
+        if self.env_info['use_joint_controller']:
+            self.action_space = gym.spaces.Box(low=-self.env_info['max_action'], high=self.env_info['max_action'], shape=(self.env.robots[0].dof + 1,), dtype=float)
+        else:
+            if self.env_info['use_euler']:
+                self.action_space = gym.spaces.Box(low=-self.env_info['max_action'], high=self.env_info['max_action'], shape=(7,), dtype=float)
+            else:
+                self.action_space = gym.spaces.Box(low=-self.env_info['max_action'], high=self.env_info['max_action'], shape=(8,), dtype=float)
 
     def init_subtask_info(self):
         self.scene_all_obj_set = set()
@@ -71,7 +82,7 @@ class RealInSimulation:
     def init_scene_xmlobj_pose(self):
         self.env_info['hand_eye'] = get_handeye_T(self.env_info['hand_eye_path'])
         for i in range(len(self.env_info['obj_info']['poses'])):
-            pose_matrix = self.env_info['obj_info']['poses'][i]
+            pose_matrix = np.array(self.env_info['obj_info']['poses'][i])
             if pose_matrix.shape == (4, 4):
                 self.env_info['obj_info']['poses'][i] = get_7Dof_pose(pose_matrix)
             elif pose_matrix.shape == (7,):
@@ -440,7 +451,7 @@ class RealInSimulation:
         if not self.env_info['use_gravity']:
             self.env.sim.model.opt.gravity[:] = [0.0, 0.0, 0.0]
         self.init_subtask_info()
-        init_pose = self.env_info['robot_init_qpos']
+        init_pose = np.array(self.env_info['robot_init_qpos'])
         action = np.concatenate([init_pose, np.array([-1])])
         self._step(action, True)
         observations, reward, done, info = self._step(action, True)

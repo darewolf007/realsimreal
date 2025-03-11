@@ -24,8 +24,8 @@ from simple_sim.know_obj.xml_obj import (
     PenHolderObject, BlueCanObject,
     StopButtonObject
 )
-from simple_sim.external_area import ExternalArea
-from simple_sim.sim_utils import add_noise_to_rotation_z
+from simple_sim.sim_utils.external_area import ExternalArea
+from simple_sim.sim_utils.sim_util import add_noise_to_rotation_z
 KNOW_OBJ = {"can": CanObject,
              "kettle": KettleObject,
               "cup": CupObject,
@@ -103,7 +103,7 @@ class SimpleEnv(ManipulationEnv):
         )
 
     def init_scene_info(self):
-        self.init_qpos = self.env_info['robot_init_qpos']
+        self.init_qpos = np.array(self.env_info['robot_init_qpos'])
         scene_dict = self.env_info['obj_info']
         for i, label in enumerate(scene_dict["labels"]):
             if label == "table":
@@ -124,7 +124,7 @@ class SimpleEnv(ManipulationEnv):
         self.robots[0].robot_model._elements["root_body"].set("quat", array_to_string(robot_quat))
         self.robots[0].init_qpos = self.init_qpos
         base_path = os.path.dirname(os.path.realpath(__file__))
-        obj_xml = os.path.join(base_path, "./asset/external_area.xml")
+        obj_xml = os.path.join(base_path, "../asset/external_area.xml")
         mujoco_arena = ExternalArea(xml_path_completion(obj_xml))
         for view_name, view_info in self.env_info['camera_info'].items():
             mujoco_arena.set_camera(
@@ -142,8 +142,8 @@ class SimpleEnv(ManipulationEnv):
     def object_initializer(self):
         for obj in self.scene_objects:
             idx = self.env_info['obj_info']['labels'].index(obj.name)
-            obj_position = self.env_info['obj_info']['poses'][idx][:3].copy()
-            obj_quat = self.env_info['obj_info']['poses'][idx][3:].copy()
+            obj_position = np.array(self.env_info['obj_info']['poses'][idx][:3].copy())
+            obj_quat = np.array(self.env_info['obj_info']['poses'][idx][3:].copy())
             if self.env_info['init_noise']:
                 obj_position[:2] += np.random.uniform(self.env_info['init_translation_noise_bounds'][0], self.env_info['init_translation_noise_bounds'][1], size=2)
                 obj_quat = add_noise_to_rotation_z(obj_quat, self.env_info['init_rotation_noise_bounds'])
@@ -166,7 +166,7 @@ class SimpleEnv(ManipulationEnv):
         return observables
 
     def _reset_internal(self):
-        self.init_qpos = self.env_info['robot_init_qpos']
+        self.init_qpos = np.array(self.env_info['robot_init_qpos'])
         super()._reset_internal()
         self.object_initializer()
         # for obj in self.scene_objects:

@@ -22,8 +22,9 @@ import agent_policy.LaNE.env_wrapper as env_wrapper
 
 # from train_sim_example import PourSimulation, set_params
 # from train_sim_banana_multi import PickBananaSimulation, set_params
-from train_sim_banana import PickBananaSimulation, set_params
-
+from train_sim_banana import set_params
+from simple_sim.environment.pick_environment import PickBananaSimulation
+from utils.image_util import resize_image, save_image_pkl
 def parse_args():
     parser = argparse.ArgumentParser()
     # environment
@@ -126,6 +127,8 @@ def evaluate(env, agent, video, num_episodes, L, step, args):
         num_successes = 0
         for i in range(num_episodes):
             obs = env.reset()
+            obs = resize_image(obs, 1/12)
+            obs = np.transpose(obs, (2, 0, 1))
             video.init(enabled=(i == 0))
             done = False
             episode_reward = 0
@@ -391,7 +394,6 @@ def train_main():
             eval_and_save()
 
         if done:
-            print("done once ******************************************")
             if step > 0:
                 L.log("train/duration", time.time() - start_time, step)
                 L.dump(step)

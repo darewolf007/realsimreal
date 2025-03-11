@@ -1,0 +1,42 @@
+env_info:
+# task setting
+  task_name: ${task_name}
+  subtask_language_info: ${subtask_language_info}
+  subtask_object_info: ${subtask_object_info}
+  robot_init_qpos: ${robot_init_qpos}
+# construct the task specific environment
+  base_choose: "robot" # choose world base coordinate, robot or camera
+  obj_pose_base: "robot" # init object pose base coordinate, robot or camera
+  use_gravity: true
+  has_renderer: false
+  hand_eye_path: ./configs/ur5_kinect_handeyecalibration_eye_on_base.yaml
+  obj_info: ${obj_info}
+# simulation environment setting
+  init_noise: true # add noise to init object pose
+  init_translation_noise_bounds: [-0.005, 0.005]
+  init_rotation_noise_bounds: [-5, 5]
+  task_max_step: 50 # max step for each task
+  subtask_max_step: 50
+# camera setting
+  camera_names: ["sceneview", "birdview", "frontview", "rightview"]
+  camera_heights: [1536, 1536, 1536, 1536]
+  camera_widths: [2048, 2048, 2048, 2048]
+  camera_depths: true
+  is_crop: false # object centered crop, not use now
+  crop_image_size: [768, 768]
+# robot setting
+  use_joint_controller: false # simulation robot control type, true for joint control, false for end effector control
+  use_euler: true # simulation end effector control type, true for euler control, false for quaternion control
+  use_delta: true # simulation robot control type, true for delta control, false for absolute control
+  control_freq: 20
+  max_action: 4
+# reward model setting
+  reward_type: "sparse" # dense or sparse
+  save_online_image: true # save online vlm image, save image for train reward model
+  online_data_save_path: ./experiments/${task_name}/promot_data
+  train_subtask: false 
+  add_additional_reward: false # for sd3g, not use now
+  replay_data_save_path: ./data/sim_data/pt_data/  # for sd3g, not use now
+  replay_buffer_load_dir: ./data/sim_data/pt_data/${dataset_name} # for sd3g, not use now
+# real_to_sim setting
+  data_path: null # real world data path

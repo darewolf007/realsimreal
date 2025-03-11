@@ -9,6 +9,7 @@ test/
 *.log
 *.pyc
 .idea/
+old_files/
 __pycache__/
 *.make
 *.cmake

@@ -6,7 +6,7 @@ import torch.nn as nn
 from torch.nn import functional as F
 from diffusers.training_utils import EMAModel
 from diffusers.schedulers.scheduling_ddim import DDIMScheduler
-from agent_policy.policy_util.diffusion_policy import ConditionalUnet1D
+from agent_policy.diffusion.policy_util.diffusion_policy import ConditionalUnet1D
 
 class DiffusionPolicy(nn.Module):
     def __init__(self, args_override):

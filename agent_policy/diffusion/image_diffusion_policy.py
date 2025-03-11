@@ -7,9 +7,9 @@ import IPython
 e = IPython.embed
 
 from collections import OrderedDict
-from agent_policy.policy_util.base_nets import ResNet18Conv, SpatialSoftmax
+from agent_policy.diffusion.policy_util.base_nets import ResNet18Conv, SpatialSoftmax
 
-from agent_policy.policy_util.diffusion_policy import replace_bn_with_gn, ConditionalUnet1D
+from agent_policy.diffusion.policy_util.diffusion_policy import replace_bn_with_gn, ConditionalUnet1D
 
 from diffusers.schedulers.scheduling_ddim import DDIMScheduler
 from diffusers.training_utils import EMAModel

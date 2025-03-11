@@ -317,6 +317,7 @@ def set_params(args):
     env_info['use_delta'] = True
     env_info['add_additional_reward'] = args.add_additional_reward
     env_info['train_subtask'] = args.train_subtask
+    env_info['reward_type'] = "sparse"
     if env_info['is_crop']:
         env_info['camera_heights'] = [768*2, 1536, 1536, 1536]
         env_info['camera_widths'] = [2048, 2048, 2048, 2048]
