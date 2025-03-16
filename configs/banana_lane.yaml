@@ -20,7 +20,8 @@ reward_model_type: "test" # test, online, offline. test use the reward model in 
 reward_scale: 100
 use_pre_reward: false
 
-now: ${dataset_name}-${env_name}-${agent_name}-${reward_model_type}-${now:%Y-%m-%d}-${now:%H-%M-%S}
+now: ${now:%Y-%m-%d}-${now:%H-%M-%S}
+save_dir: ./experiments/${task_name}/${dataset_name}-${env_name}-${agent_name}-${reward_model_type}-${now}
 # load all the default settings
 defaults:
   - environment: base_env
@@ -29,4 +30,4 @@ defaults:
 hydra:
     name: ${task_name}
     run:
-        dir: ./experiments/${task_name}/${now}
+        dir: ${save_dir}

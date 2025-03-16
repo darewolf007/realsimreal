@@ -1,6 +1,7 @@
 import torch
 from agent_policy.LaNE.sac import DINOE2CSacAgent
 from agent_policy.LaNE.train import LaNE_train_main
+from agent_policy.LaNE.data_augs import center_crop
 
 class eval_mode(object):
     def __init__(self, *models):
@@ -67,11 +68,12 @@ class BaseAgentPolicy:
             print("Training agent")
         else:
             print("Loading agent")
-            agent.load(args.model_dir, 0)
+            agent.load(args.model_dir, 8000)
         return agent
 
     def get_action(self, obs):
         if self.agent_name == "LaNE":
+            obs = center_crop(obs, self.args.image_size)
             with eval_mode(self.agent):
                 action = self.agent.select_action(obs)
             return action

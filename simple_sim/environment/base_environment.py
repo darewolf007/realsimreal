@@ -31,6 +31,21 @@ class SingleViewSimulation(RealInSimulation):
         self.gripper_change_num = 0
         return observation
     
+    def action_info(self):
+        pt_data_path = self.env_info['replay_buffer_load_dir']
+        chunks = os.listdir(pt_data_path)
+        chunks = [c for c in chunks if c[-3:] == ".pt"]
+        chucks = sorted(chunks, key=lambda x: int(x.split("_")[0]))
+        path = os.path.join(pt_data_path, chucks[0])
+        payload = torch.load(path)
+        actions = np.array(payload[2])
+        actions[:,:3] = actions[:,:3] * 100
+        xyz_mean = np.mean(actions[:, :3], axis=0, keepdims=True)
+        xyz_std = np.std(actions[:, :3], axis=0, keepdims=True)
+        xyz_std[xyz_std == 0] = 1.0
+        actions[:, :3] = (actions[:, :3] - xyz_mean) / xyz_std
+        return xyz_mean, xyz_std
+
     def replay(self, img_post_process_fn, reward_fn=None, action_pre_process_fn=None):
         pt_data_path = self.env_info['replay_buffer_load_dir']
         chunks = os.listdir(pt_data_path)
