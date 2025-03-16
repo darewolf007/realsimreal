@@ -79,9 +79,9 @@ class BaseAgentPolicy:
             raise NotImplementedError
 
     
-    def train_agent(self, env, test_env, img_post_process_fn):
+    def train_agent(self, env, test_env, img_post_process_fn, reward_fn=None, action_pre_process_fn=None):
         if self.agent_name == "LaNE":
             torch.multiprocessing.set_start_method("spawn")
-            LaNE_train_main(agent = self.agent, args = self.args, env = env, test_env = test_env, post_process_fn=img_post_process_fn)
+            LaNE_train_main(agent = self.agent, args = self.args, env = env, test_env = test_env, post_process_fn=img_post_process_fn, reward_fn=reward_fn, action_pre_process_fn=action_pre_process_fn)
         else:
             raise NotImplementedError

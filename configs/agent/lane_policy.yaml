@@ -62,7 +62,7 @@ agent:
 
   # Miscellaneous
   seed: 1
-  work_dir: "./experiments"
+  work_dir: "./experiments/${task_name}/${now}"
   save_tb: true
   save_buffer: false
   save_video: true
@@ -82,3 +82,7 @@ agent:
   pretrain_mode: null
   conv_layer_norm: true
   p_reward: 1.0
+
+  # Reward Model
+  save_online_image: true # save online vlm image, save image for train reward model
+  online_data_save_path: ./experiments/${task_name}/${now}/online_reward_data

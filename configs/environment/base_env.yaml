@@ -32,11 +32,11 @@ env_info:
   max_action: 4
 # reward model setting
   reward_type: "sparse" # dense or sparse
-  save_online_image: true # save online vlm image, save image for train reward model
-  online_data_save_path: ./experiments/${task_name}/promot_data
-  train_subtask: false 
+  train_subtask: false # not use now
   add_additional_reward: false # for sd3g, not use now
   replay_data_save_path: ./data/sim_data/pt_data/  # for sd3g, not use now
-  replay_buffer_load_dir: ./data/sim_data/pt_data/${dataset_name} # for sd3g, not use now
+  
 # real_to_sim setting
   data_path: null # real world data path
+  replay_buffer_load_dir: ./data/sim_data/pt_data/${dataset_name} # for replay and sd3g
+
