@@ -84,5 +84,5 @@ agent:
   p_reward: 1.0
 
   # Reward Model
-  save_online_image: true # save online vlm image, save image for train reward model
+  save_online_image: ${save_online_image} # save online vlm image, save image for train reward model
   online_data_save_path: ./online_reward_data

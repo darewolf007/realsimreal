@@ -29,7 +29,7 @@ class RewardModel:
     def update(self, action, observation, info):
         if self.subtask_done_flag and self.subtask_pre_flag:
             self.subtask_idx += 1
-            self.subtask_pre_flag = False
+            self.subtask_pre_flag = False if self.cfg.use_pre_reward else True
             self.subtask_done_flag = False
         self.last_action = action
         self.last_observation = observation
@@ -46,7 +46,9 @@ class RewardModel:
         image_dict = {
             "front_view": resize_image(observations["frontview_image"], 0.25),
             "right_view": resize_image(observations["rightview_image"], 0.25),
-            "bird_view": resize_image(observations["birdview_image"], 0.25)
+            "bird_view": resize_image(observations["birdview_image"], 0.25),
+            "sceneview_depth": observations["sceneview_depth"],
+            "sceneview_rgb": observations["sceneview_image"],
         }
         if self.subtask_pre_flag == False:
             # pre_reward function

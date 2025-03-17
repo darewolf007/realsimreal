@@ -9,6 +9,9 @@ class PickApplePlaceBowlSimulation(SingleViewSimulation):
         self.pick_reward_given = False
         self.place_reward_given = False
 
+    def step(self, action, step_num=2):
+        return super().step(action, step_num)
+    
     def reward(self, info, action):
         if self.env_info['reward_type'] == "sparse":
             reaching_reward = -1
@@ -22,9 +25,11 @@ class PickApplePlaceBowlSimulation(SingleViewSimulation):
         if self.pick_flag and not self.pick_reward_given:
             pick_reward = 100 - self.gripper_change_num * 10
             self.pick_reward_given = True
+            reaching_reward = 0
         if self.place_flag and not self.place_reward_given:
             place_reward = 100 - self.gripper_change_num * 10
             self.place_reward_given = True
+            reaching_reward = 0
             
         return reaching_reward + pick_reward + place_reward
     
@@ -43,7 +48,7 @@ class PickApplePlaceBowlSimulation(SingleViewSimulation):
 
     def is_place_done_from_sim(self, info, action):
         if action[-1] == -1 and (not self.place_flag) and (self.sub_task_idx==1) and (
-            0.15 > info["gripper_bowl"] and info['subtask1'] < 0.11
+            0.15 > info["gripper_bowl"] and info['subtask1'] < 0.07
             ):
             self.place_flag = True
         

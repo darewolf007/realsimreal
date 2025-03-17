@@ -2,7 +2,7 @@
 task_name: "Pick up banana"
 dataset_name: "pick up banana"
 env_name: "PickBanana"
-subtask_language_info: [["Pick up banana"]]  # get form task discription (LLM)
+subtask_language_info: ["Pick up banana"]  # get form task discription (LLM)
 subtask_object_info: [["gripper", "banana"]] # object discription, first is the moving object, second is the target object
 obj_info:
   labels: ["banana"] # object label, get from task discription (LLM)
@@ -19,6 +19,7 @@ train_camera_name: "sceneview" # choose camera for training
 reward_model_type: "test" # test, online, offline. test use the reward model in the environment
 reward_scale: 100
 use_pre_reward: false
+save_online_image: true # save online vlm image, save image for train reward model
 
 now: ${now:%Y-%m-%d}-${now:%H-%M-%S}
 save_dir: ./experiments/${task_name}/${dataset_name}-${env_name}-${agent_name}-${reward_model_type}-${now}

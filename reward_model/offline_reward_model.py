@@ -172,7 +172,7 @@ def eval(model, val_loader, criterion, device):
     accuracy = correct / total
     return avg_loss, accuracy
 
-def train():
+def train_offline_reward(multi_view_dir, test_data_dir, batch_size=32):
     test_data_dir = '/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/easy_task/pick up banana'
     train_data_dir = 'path_to_dataset'
     batch_size = 32
@@ -247,7 +247,5 @@ def train():
     final_loss, final_accuracy = eval(reward_model, val_loader, criterion, device)
     print(f"Final evaluation - Loss: {final_loss:.4f}, Accuracy: {final_accuracy:.4f}")
     
-    return reward_model, best_accuracy
-
 if __name__ == "__main__":
-    reward_model, best_accuracy = train()
+    train_offline_reward(multi_view_dir = "/home/haowen/hw_mine/Real_Sim_Real/experiments/Pick up banana/pick up banana-PickBanana-LaNE-test-2025-03-16-20-26-35/online_reward_data")

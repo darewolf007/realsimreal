@@ -29,7 +29,7 @@ class RealInSimulation:
         self.sub_task_min_num = 10
         self.sub_task_max_num = env_info['subtask_max_step']
         self.all_task_step_num = 0 
-        self.all_task_max_num = env_info['task_max_step']
+        self.all_task_max_num = env_info['subtask_max_step'] * len(env_info['subtask_language_info'])
         self.init_scene_xmlobj_pose()
         self.init_scene_camera_pose()
         self.init_motion_planning()
@@ -651,26 +651,26 @@ if __name__ == "__main__":
     # env_info['subtask_object_info'] = [subtask_1_obj]
 
     #### pick place apple
-    # task_name = "Pick up apple and place it to the bowl"
-    # subtask_1 = "Pick up apple"
-    # subtask_1_obj = ["gripper", "apple"]
-    # subtask_2 = "place apple to the bowl"
-    # subtask_2_obj = ["apple", "bowl"]
-    # base_path = os.path.dirname(os.path.realpath(__file__))
-    # handeye_T_path = os.path.join(base_path, "../configs/ur5_kinect_handeyecalibration_eye_on_base.yaml")
-    # handeye_T = get_handeye_T(handeye_T_path)
-    # robot_init_pose = np.array([ -1.30487138, -1.69159379, 1.7358554 , -1.55820926, -1.51700765,
-    #    -0.55815155])
-    # apple_pose = np.array([-2.58006106e-01,  4.77104923e-01,  0.04,  0.707, 0, 0,  0.707])
-    # bowl_pose = np.array([-0.42696884,  0.23760321,  0.04,  1, 0, 0,  0])
-    # scene_dict = {"labels": ["apple", "bowl"], "poses": [apple_pose, bowl_pose], "grasp_obj": [True, True]}
-    # replay_data_save_path = os.path.join(base_path, "../data/sim_data/")
-    # env_info = {}
-    # env_info['obj_pose_base'] = "robot"
-    # env_info['replay_data_save_path'] = replay_data_save_path
-    # env_info['task_name'] = task_name
-    # env_info['subtask_language_info'] = [subtask_1, subtask_2]
-    # env_info['subtask_object_info'] = [subtask_1_obj, subtask_2_obj]
+    task_name = "Pick up apple and place it to the bowl"
+    subtask_1 = "Pick up apple"
+    subtask_1_obj = ["gripper", "apple"]
+    subtask_2 = "place apple to the bowl"
+    subtask_2_obj = ["apple", "bowl"]
+    base_path = os.path.dirname(os.path.realpath(__file__))
+    handeye_T_path = os.path.join(base_path, "../configs/ur5_kinect_handeyecalibration_eye_on_base.yaml")
+    handeye_T = get_handeye_T(handeye_T_path)
+    robot_init_pose = np.array([ -1.30487138, -1.69159379, 1.7358554 , -1.55820926, -1.51700765,
+       -0.55815155])
+    apple_pose = np.array([-2.58006106e-01,  4.77104923e-01,  0.04,  0.707, 0, 0,  0.707])
+    bowl_pose = np.array([-0.42696884,  0.23760321,  0.00,  1, 0, 0,  0])
+    scene_dict = {"labels": ["apple", "bowl"], "poses": [apple_pose, bowl_pose], "grasp_obj": [True, False]}
+    replay_data_save_path = os.path.join(base_path, "../data/sim_data/")
+    env_info = {}
+    env_info['obj_pose_base'] = "robot"
+    env_info['replay_data_save_path'] = replay_data_save_path
+    env_info['task_name'] = task_name
+    env_info['subtask_language_info'] = [subtask_1, subtask_2]
+    env_info['subtask_object_info'] = [subtask_1_obj, subtask_2_obj]
 
     #### stack can
     # task_name = "stack can to the blue can"
@@ -722,7 +722,7 @@ if __name__ == "__main__":
     env_info['hand_eye'] = handeye_T
     env_info['obj_info'] = scene_dict
     env_info['use_gravity'] = True
-    env_info['data_path'] = "/home/haowen/hw_mine/Real_Sim_Real/data/real_data/easy_task/pick_banana/5/traj/"
+    env_info['data_path'] = "/home/haowen/hw_mine/Real_Sim_Real/data/real_data/easy_task/pick_place_apple_bowl/5/traj/"
     begin_step = 4
     # env_info['base_choose'] = "camera"
     env_info['base_choose'] = "robot"
@@ -750,11 +750,13 @@ if __name__ == "__main__":
     env_info['use_delta'] = True
     env_info['init_translation_noise_bounds'] = (-0.03, 0.03)
     env_info['init_rotation_noise_bounds'] = (-50, 50)
+    env_info['use_joint_controller'] = False
+    env_info['max_action'] = 4
     test_real = RealInSimulation("UR5e",
                                  env_info,
                                  has_renderer=env_info['has_renderer'],
                                  has_offscreen_renderer=True,
-                                 render_camera="robot0_eye_in_hand",
+                                 render_camera="sceneview",
                                  ignore_done=True,
                                  use_camera_obs=True,
                                  camera_depths=env_info['camera_depths'],

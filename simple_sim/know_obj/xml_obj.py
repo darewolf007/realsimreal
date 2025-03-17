@@ -79,10 +79,15 @@ class BowlObject(MujocoXMLObject):
         base_path = os.path.dirname(os.path.realpath(__file__))
         obj_xml = os.path.join(base_path, "../asset/know/bowl.xml")
         super().__init__(
+            # xml_path_completion(obj_xml),
+            # name=name,
+            # joints=[dict(type="free", damping="0.01")],
+            # obj_type="all",
+            # duplicate_collision_geoms=True,
             xml_path_completion(obj_xml),
             name=name,
-            joints=[dict(type="free", damping="0.01")],
-            obj_type="all",
+            joints=None,
+            obj_type="visual",
             duplicate_collision_geoms=True,
         )
 

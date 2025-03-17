@@ -19,6 +19,11 @@ class RGBDImageLabelDataset(Dataset):
         self.labels = []
         self.get_test_data(data_dir)
 
+    def get_train_data(self, data_dir):
+        subfolders = [f for f in os.listdir(data_dir) if os.path.isdir(os.path.join(data_dir, f))]
+        for folder in subfolders:
+            traj_path = os.path.join(data_dir, folder + "/data")
+
     def get_test_data(self, data_dir):
         subfolders = [f for f in os.listdir(data_dir) if os.path.isdir(os.path.join(data_dir, f))]
         for folder in subfolders:

@@ -9,8 +9,8 @@ class SingleViewSimulation(RealInSimulation):
         super().__init__(robot, env_info, has_renderer, *args, **kwargs)
         self.gripper_change_num = 0   
 
-    def step(self, action, use_joint_controller=False):
-        observation, _, _, info = super().multi_step(action, self.env_info['use_delta'], use_joint_controller, is_collect=False, step_num=1, use_euler= self.env_info['use_euler'])
+    def step(self, action, step_num=1, use_joint_controller=False):
+        observation, _, _, info = super().multi_step(action, self.env_info['use_delta'], use_joint_controller, is_collect=False, step_num=step_num, use_euler= self.env_info['use_euler'])
         done = self.is_sucess(info, action)
         reward = self.reward(info, action)
         if done:
