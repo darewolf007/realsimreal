@@ -180,7 +180,10 @@ if __name__ == "__main__":
     output_path = "/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/pt_data/" 
     
     real_data_dir = "/home/haowen/hw_mine/Real_Sim_Real/data/real_data/easy_task/pick_banana"
-    real_pt_output_path = "/home/haowen/hw_mine/Real_Sim_Real/data/real_data/pick_banana/"
+    real_pt_output_path = "/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/real_data/pick_banana"
+    if os.path.exists(real_pt_output_path):
+        shutil.rmtree(real_pt_output_path)
+    os.mkdir(real_pt_output_path)
     convert_real_to_pt(real_data_dir, real_pt_output_path + "/", crop)
     
     # check_data_quality(data_dir, crop)

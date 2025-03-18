@@ -151,6 +151,14 @@ def ask_pour_subtask(image_dict, moving_obj = "", target_obj = ""):
         else:
             return False
 
+def ask_subtask(image_dict, moving_obj = "", target_obj = "", subtask = "grasp", pre_flag = False):
+    if subtask == "grasp":
+        return ask_grasp_subtask(image_dict, moving_obj, target_obj)
+    elif subtask == "pour":
+        return ask_pour_subtask(image_dict, moving_obj, target_obj)
+    else:
+        raise ValueError("subtask must be either grasp or pour.")
+
 if __name__ == "__main__":
     import PIL.Image as Image
     # front_view_image = Image.open("/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/Pour can into a cup1/rgb_frontview/60.png").convert("RGB")

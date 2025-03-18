@@ -83,15 +83,18 @@ def eval_agent_in_env(cfg):
         if done:
             obs = eval_env.reset()
 
-# @hydra.main(config_path='configs/pick_lane.yaml', strict=True)
-@hydra.main(config_path='configs/pickplace_lane.yaml', strict=True)
+@hydra.main(config_path='configs/pick_lane.yaml', strict=True)
+# @hydra.main(config_path='configs/pickplace_lane.yaml', strict=True)
 def train_policy(cfg):
     env = make_env(cfg.env_name, OmegaConf.to_container(cfg.env_info, resolve=True))
     # env.replay(img_post_process_fn=make_imageprocess_fn(cfg), reward_fn=RewardModel(cfg), action_pre_process_fn=make_actionprocess_fn(cfg))
     test_env = make_env(cfg.env_name, OmegaConf.to_container(cfg.env_info, resolve=True))
     obs_shape = (3 * len(cfg.agent.cameras) * cfg.agent.frame_stack, cfg.agent.image_size, cfg.agent.image_size) 
     action_shape = env.action_space.shape
-    agent = make_policy_agent(cfg.agent, cfg.agent_name, cfg.device, obs_shape, action_shape, is_train=True)
+    if cfg.is_finetuning:
+        agent = make_policy_agent(cfg.finetuning, cfg.agent_name, cfg.device, obs_shape, action_shape, is_train=True)
+    else:
+        agent = make_policy_agent(cfg.agent, cfg.agent_name, cfg.device, obs_shape, action_shape, is_train=True)
     agent.train_agent(env, test_env, img_post_process_fn=make_imageprocess_fn(cfg), reward_fn=RewardModel(cfg), action_pre_process_fn=make_actionprocess_fn(cfg))
 
 if __name__ == "__main__":

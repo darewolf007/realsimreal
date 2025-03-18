@@ -165,6 +165,13 @@ class RGBDViewReward(nn.Module):
 
         return logits
 
+    def get_reward(self, obs, task_text=None):
+        with torch.no_grad():
+            probs = self.forward(obs, task_text)
+            probs = torch.sigmoid(probs)
+            predictions = (probs > 0.5).float()
+        return predictions
+
 def eval(model, val_loader, criterion, device):
     model.eval()
     total_loss = 0.0

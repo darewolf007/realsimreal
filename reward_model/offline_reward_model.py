@@ -147,12 +147,10 @@ class MultiViewReward(nn.Module):
         return probs
 
     def get_reward(self, obs, task_text=None):
-        """Calculate binary reward from observations"""
-        self.eval()
         with torch.no_grad():
             probs = self.forward(obs, task_text)
             rewards = (probs > 0.5).float()
-        return rewards, probs.squeeze()
+        return rewards
 
 def eval(model, val_loader, criterion, device):
     model.eval()
