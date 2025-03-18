@@ -3,14 +3,26 @@ import cv2
 import pickle
 import numpy as np
 
-def resize_image(image, scale_factor=0.5):                
+def center_crop(image, output_size=112):
+    h, w = image.shape[1:]
+    assert h >= output_size
+    new_h, new_w = output_size, output_size
+
+    top = (h - new_h) // 2
+    left = (w - new_w) // 2
+
+    image = image[:, top : top + new_h, left : left + new_w]
+    return image
+
+def resize_image(image, scale_factor=0.5, target_size=None):
     height, width = image.shape[:2]
     min_dim = min(height, width)
     start_y = (height - min_dim) // 2
     start_x = (width - min_dim) // 2
     cropped = image[start_y:start_y+min_dim, start_x:start_x+min_dim]
-    new_size = (int(min_dim * scale_factor), int(min_dim * scale_factor))
-    resized_image = cv2.resize(cropped, new_size, interpolation=cv2.INTER_AREA)
+    if target_size is None:              
+        target_size = (int(min_dim * scale_factor), int(min_dim * scale_factor))
+    resized_image = cv2.resize(cropped, target_size, interpolation=cv2.INTER_AREA)
     return resized_image
 
 def save_image_pkl(image_dict, path, save_ori_image = False):

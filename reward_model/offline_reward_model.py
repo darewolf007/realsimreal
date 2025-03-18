@@ -172,12 +172,7 @@ def eval(model, val_loader, criterion, device):
     accuracy = correct / total
     return avg_loss, accuracy
 
-def train_offline_reward(multi_view_dir, test_data_dir, batch_size=32):
-    test_data_dir = '/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/easy_task/pick up banana'
-    train_data_dir = 'path_to_dataset'
-    batch_size = 32
-    train_loader, val_loader = load_dataset(test_data_dir, batch_size)
-    
+def train_offline_reward(train_loader, val_loader, base_path, logger=None):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     reward_model = MultiViewReward(fc_dim=3*384, ln_dim=512, image_num=3, device=device)
     reward_model.to(device)
@@ -186,11 +181,10 @@ def train_offline_reward(multi_view_dir, test_data_dir, batch_size=32):
     optimizer = torch.optim.Adam(reward_model.parameters(), lr=0.001)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', factor=0.5, patience=3)
     
-    num_epochs = 30
+    num_epochs = 3000
     step = 0
     best_accuracy = 0.0
-    best_model_path = 'best_reward_model.pth'
-    
+    best_model_path = os.path.join(base_path, './experiments/offline_reward_model/best_reward_model.pth')
     os.makedirs(os.path.dirname(best_model_path) if os.path.dirname(best_model_path) else '.', exist_ok=True)
     
     print(f"Starting training for {num_epochs} epochs...")
@@ -201,7 +195,6 @@ def train_offline_reward(multi_view_dir, test_data_dir, batch_size=32):
         
         for obs, labels in train_loader:
             obs, labels = obs.to(device), labels.to(device)
-            
             outputs = reward_model(obs)
             loss = criterion(outputs, labels.float().unsqueeze(1))  # Ensure labels have right shape
             
@@ -214,6 +207,10 @@ def train_offline_reward(multi_view_dir, test_data_dir, batch_size=32):
             
             if step % 10 == 0:
                 avg_val_loss, accuracy = eval(reward_model, val_loader, criterion, device)
+                logger.add_scalar("Loss/Train", loss.item(), step)
+                logger.add_scalar("Loss/Validation", avg_val_loss, step)
+                logger.add_scalar("Accuracy/Validation", accuracy, step)
+                logger.add_scalar("Learning Rate", optimizer.param_groups[0]['lr'], step)
                 print(f'Epoch [{epoch+1}/{num_epochs}], Step [{step}], Train Loss: {loss.item():.4f}, '
                       f'Val Loss: {avg_val_loss:.4f}, Accuracy: {accuracy:.4f}')
                 
@@ -236,7 +233,9 @@ def train_offline_reward(multi_view_dir, test_data_dir, batch_size=32):
               f'Train Loss: {avg_epoch_loss:.4f}, '
               f'Val Loss: {avg_val_loss:.4f}, '
               f'Accuracy: {accuracy:.4f}')
-        
+        logger.add_scalar("Loss/Epoch_Train", avg_epoch_loss, epoch)
+        logger.add_scalar("Loss/Epoch_Validation", avg_val_loss, epoch)
+        logger.add_scalar("Accuracy/Epoch_Validation", accuracy, epoch)
         scheduler.step(accuracy)
     
     print(f"Training completed! Best accuracy: {best_accuracy:.4f}")
@@ -246,6 +245,3 @@ def train_offline_reward(multi_view_dir, test_data_dir, batch_size=32):
     reward_model.load_state_dict(checkpoint['model_state_dict'])
     final_loss, final_accuracy = eval(reward_model, val_loader, criterion, device)
     print(f"Final evaluation - Loss: {final_loss:.4f}, Accuracy: {final_accuracy:.4f}")
-    
-if __name__ == "__main__":
-    train_offline_reward(multi_view_dir = "/home/haowen/hw_mine/Real_Sim_Real/experiments/Pick up banana/pick up banana-PickBanana-LaNE-test-2025-03-16-20-26-35/online_reward_data")
