@@ -1,5 +1,4 @@
 agent:
-  domain_name: ${task_name}
   task_name: ${task_name}
 
   pre_transform_image_size: 128
@@ -84,5 +83,6 @@ agent:
   p_reward: 1.0
 
   # Reward Model
+  reward_model_type : ${reward_model_type}
   save_online_image: ${save_online_image} # save online vlm image, save image for train reward model
   online_data_save_path: ./online_reward_data

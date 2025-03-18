@@ -1,5 +1,4 @@
 agent:
-  domain_name: ${task_name}
   task_name: ${task_name}
 
   pre_transform_image_size: 128

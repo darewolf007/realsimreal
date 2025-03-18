@@ -156,18 +156,19 @@ def load_rgbd_train_dataset(data_dir, batch_size, val_split=0.2):
     return train_loader, val_loader
 
 if __name__ == "__main__":
+    task_name = "Pick up banana"
     data_dir = "/home/haowen/hw_mine/Real_Sim_Real/experiments/Pick up banana/pick up banana-PickBanana-LaNE-test-2025-03-16-20-26-35/online_reward_data"
     base_path = os.path.dirname(os.path.abspath(__file__))
     batch_size = 32
     train_loader, val_loader = load_multiview_train_dataset(data_dir, batch_size)
-    offline_log_dir = os.path.join(base_path, "./experiments/offline_reward_model/logs/offline_reward")
+    offline_log_dir = os.path.join(base_path, "./experiments/offline_reward_model/" + task_name + "/logs/offline_reward")
     os.makedirs(offline_log_dir, exist_ok=True)
     logger = SummaryWriter(log_dir=offline_log_dir)
-    train_offline_reward(train_loader, val_loader, base_path, logger)
+    train_offline_reward(train_loader, val_loader, base_path, logger, task_name)
     logger.close()
     batch_size = 1
-    action_feasible_log_dir = os.path.join(base_path, "./experiments/action_feasible_model/logs/action_feasible")
+    action_feasible_log_dir = os.path.join(base_path, "./experiments/action_feasible_model/" + task_name + "/logs/action_feasible")
     action_logger = SummaryWriter(log_dir=action_feasible_log_dir)
     train_loader, val_loader = load_rgbd_train_dataset(data_dir, batch_size)
-    train_action_feasible(train_loader, val_loader, base_path, action_logger)
+    train_action_feasible(train_loader, val_loader, base_path, action_logger, task_name)
     action_logger.close()

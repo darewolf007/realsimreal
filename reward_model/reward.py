@@ -1,4 +1,5 @@
 import torch
+import os
 import numpy as np
 from reward_model.utils.image_util import resize_image, save_image_pkl
 from reward_model.action_feasibility_model import RGBDViewReward
@@ -6,8 +7,9 @@ from reward_model.offline_reward_model import MultiViewReward
 from reward_model.online_reward_model import ask_subtask
 
 class RewardModel:
-    def __init__(self, cfg):
+    def __init__(self, cfg, base_path):
         self.cfg = cfg
+        self.base_path = base_path
         self.subtask_num = len(cfg.subtask_language_info)
         self.subtask_language_info = cfg.subtask_language_info
         self.subtask_object_info = cfg.subtask_object_info
@@ -55,13 +57,17 @@ class RewardModel:
     def load_offline_reward_model(self):
         self.load_offline_reward_pretrain = True
         self.offline_reward_model = MultiViewReward()
-        self.offline_reward_model.load_model(self.cfg.offline_reward_model_path)
+        checkpoint = torch.load(os.path.join(self.base_path, self.cfg['offline_reward_model_path']), map_location="cuda" if torch.cuda.is_available() else "cpu")
+        self.offline_reward_model.load_state_dict(checkpoint['model_state_dict'])
+        self.offline_reward_model.to(self.cfg.device)
         self.offline_reward_model.eval()
 
     def load_action_feasible_model(self):
         self.load_action_feasible_pretrain = True
         self.action_feasible_model = RGBDViewReward()
-        self.action_feasible_model.load_model(self.cfg.action_feasible_model_path)
+        checkpoint = torch.load(os.path.join(self.base_path, self.cfg['action_feasible_model_path']), map_location="cuda" if torch.cuda.is_available() else "cpu")
+        self.action_feasible_model.load_state_dict(checkpoint['model_state_dict'])
+        self.action_feasible_model.to(self.cfg.device)
         self.action_feasible_model.eval()
 
     def online_reward(self, observations, action, info, reward = -1, is_save=False, is_train=True):
@@ -118,21 +124,21 @@ class RewardModel:
         right_view_img = image_dict['right_view'].astype(np.float32) / 255.0
         step_image = np.concatenate([resize_image(bird_view_img, target_size=(224, 224)), resize_image(front_view_img, target_size=(224, 224)), resize_image(right_view_img, target_size=(224, 224))], axis=2)
         step_image = np.transpose(step_image, (2, 0, 1))
-        tensor_step_image = torch.tensor(step_image).to(self.cfg.device)
+        tensor_step_image = torch.tensor(step_image).to(self.cfg.device).unsqueeze(0)
         if self.load_offline_reward_pretrain == False:
             self.load_offline_reward_model()
         if self.subtask_pre_flag == False:
             given_reward = self.offline_reward_model.get_reward(tensor_step_image)
-            if given_reward:
-                reward == -1
+            if given_reward != 1:
+                reward = -1
             else:
                 reward = 100
                 self.subtask_pre_flag = True
                 self.sum_reward += reward
         else:
             given_reward = self.offline_reward_model.get_reward(tensor_step_image)
-            if given_reward:
-                reward == -1
+            if given_reward != 1:
+                reward = -1
             else:
                 reward = 100
                 self.subtask_done_flag = True
@@ -163,16 +169,16 @@ class RewardModel:
             self.load_action_feasible_model()
         if self.subtask_pre_flag == False:
             given_reward = self.action_feasible_model.get_reward(tensor_step_image)
-            if given_reward:
-                reward == -1
+            if given_reward != 1:
+                reward = -1
             else:
                 reward = 100
                 self.subtask_pre_flag = True
                 self.sum_reward += reward
         else:
             given_reward = self.action_feasible_model.get_reward(tensor_step_image)
-            if given_reward:
-                reward == -1
+            if given_reward != 1:
+                reward = -1
             else:
                 reward = 100
                 self.subtask_done_flag = True

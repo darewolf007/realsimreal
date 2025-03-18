@@ -84,9 +84,9 @@ def convert_real_to_pt(data_dir, output_path, crop):
             os.path.join(traj_path, "traj_" + str(step) + ".npy")
             last_end_pose = np.load(os.path.join(traj_path, "traj_" + str(step-1) + ".npy"))
             now_end_pose = np.load(os.path.join(traj_path, "traj_" + str(step) + ".npy"))
-            end_action = now_end_pose[:-1] - last_end_pose[:-1]
+            end_action = now_end_pose[:3] - last_end_pose[:3]
             gripper_action = now_end_pose[-1]
-            action = np.concatenate((end_action, np.array([gripper_action])), axis=0)
+            action = np.concatenate((end_action, np.array([0,0,0]), np.array([gripper_action])), axis=0)
             obses = cv2.cvtColor(cv2.imread(os.path.join(rgb_path, "scene_" + str(step-1) + ".jpg"), cv2.IMREAD_COLOR), cv2.COLOR_BGR2RGB)
             next_obses = cv2.cvtColor(cv2.imread(os.path.join(rgb_path, "scene_" + str(step) + ".jpg"), cv2.IMREAD_COLOR), cv2.COLOR_BGR2RGB)
             not_done = False if step == step_num else True
@@ -180,7 +180,7 @@ if __name__ == "__main__":
     output_path = "/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/pt_data/" 
     
     real_data_dir = "/home/haowen/hw_mine/Real_Sim_Real/data/real_data/easy_task/pick_banana"
-    real_pt_output_path = "/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/real_data/pick_banana"
+    real_pt_output_path = "/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/real_data/pick up banana"
     if os.path.exists(real_pt_output_path):
         shutil.rmtree(real_pt_output_path)
     os.mkdir(real_pt_output_path)

@@ -170,7 +170,7 @@ def eval(model, val_loader, criterion, device):
     accuracy = correct / total
     return avg_loss, accuracy
 
-def train_offline_reward(train_loader, val_loader, base_path, logger=None):
+def train_offline_reward(train_loader, val_loader, base_path, logger=None, task_name = "Pick up banana"):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     reward_model = MultiViewReward(fc_dim=3*384, ln_dim=512, image_num=3, device=device)
     reward_model.to(device)
@@ -182,7 +182,7 @@ def train_offline_reward(train_loader, val_loader, base_path, logger=None):
     num_epochs = 3000
     step = 0
     best_accuracy = 0.0
-    best_model_path = os.path.join(base_path, './experiments/offline_reward_model/best_reward_model.pth')
+    best_model_path = os.path.join(base_path, './experiments/offline_reward_model/' + task_name + '/best_reward_model.pth')
     os.makedirs(os.path.dirname(best_model_path) if os.path.dirname(best_model_path) else '.', exist_ok=True)
     
     print(f"Starting training for {num_epochs} epochs...")

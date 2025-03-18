@@ -33,7 +33,6 @@ def make_imageprocess_fn(cfg):
             return obs
         return img_postprocess_fn
     
-
 def make_policy_agent(agent_info, agent_name, device, obs_shape, action_shape, is_train):
     base_path = os.path.dirname(os.path.abspath(__file__))
     if agent_name == "LaNE":
@@ -74,12 +73,21 @@ def eval_agent_in_env(cfg):
     action_pre_process_fn = make_actionprocess_fn(cfg)
     obs = eval_env.reset()
     xyz_mean, xyz_std = eval_env.action_info()
+    prev_gripper_state = 0
     for _ in range(50):
         new_obs = img_post_process_fn(obs)
         action = test_agent.get_action(new_obs)
         action = action_pre_process_fn(action, xyz_mean, xyz_std)
+        pre_reward, _, pre_reward_info = reward_fn(obs, action, None, -1, reward_type="test", is_save=False, is_train=False)
+        print(pre_reward)
+        if action[-1] != prev_gripper_state:
+            if not list(pre_reward_info.values())[0]["pre_reward"]:
+                print("Action is not feasible")
+                continue
         obs, reward, done, info = eval_env.step(action)
-        print(reward)
+        prev_gripper_state = action[-1]
+        done_reward, _, done_reward_info = reward_fn(obs, action, None, -1, reward_type="test", is_save=False, is_train=False)
+        print(done_reward)
         if done:
             obs = eval_env.reset()
 
@@ -95,7 +103,7 @@ def train_policy(cfg):
         agent = make_policy_agent(cfg.finetuning, cfg.agent_name, cfg.device, obs_shape, action_shape, is_train=True)
     else:
         agent = make_policy_agent(cfg.agent, cfg.agent_name, cfg.device, obs_shape, action_shape, is_train=True)
-    agent.train_agent(env, test_env, img_post_process_fn=make_imageprocess_fn(cfg), reward_fn=RewardModel(cfg), action_pre_process_fn=make_actionprocess_fn(cfg))
+    agent.train_agent(env, test_env, img_post_process_fn=make_imageprocess_fn(cfg), reward_fn=RewardModel(cfg, base_path=os.path.dirname(os.path.abspath(__file__))), action_pre_process_fn=make_actionprocess_fn(cfg))
 
 if __name__ == "__main__":
     train_policy()
