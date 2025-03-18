@@ -67,7 +67,7 @@ def eval_agent_in_env(cfg):
     eval_env = make_env(cfg.env_name, OmegaConf.to_container(cfg.env_info, resolve=True))
     obs_shape = (3 * len(cfg.agent.cameras) * cfg.agent.frame_stack, cfg.agent.image_size, cfg.agent.image_size) 
     action_shape = eval_env.action_space.shape
-    test_agent = make_policy_agent(OmegaConf.to_container(cfg.agent, resolve=True), cfg.agent_name, cfg.device, obs_shape, action_shape, is_train=False)
+    test_agent = make_policy_agent(cfg.agent, cfg.agent_name, cfg.device, obs_shape, action_shape, is_train=False)
     img_post_process_fn = make_imageprocess_fn(cfg)
     reward_fn = RewardModel(cfg)
     action_pre_process_fn = make_actionprocess_fn(cfg)

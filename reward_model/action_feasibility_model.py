@@ -167,7 +167,7 @@ class RGBDViewReward(nn.Module):
 
     def get_reward(self, obs, task_text=None):
         with torch.no_grad():
-            probs = self.forward(obs, task_text)
+            probs = self.forward(obs)
             probs = torch.sigmoid(probs)
             predictions = (probs > 0.5).float()
         return predictions

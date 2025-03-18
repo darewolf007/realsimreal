@@ -154,17 +154,14 @@ class RewardModel:
 
     def action_feasible(self, observations, action, info, reward = -1, is_save=False, is_train=True):
         image_dict = {
-            "front_view": resize_image(observations["frontview_image"], 0.25),
-            "right_view": resize_image(observations["rightview_image"], 0.25),
-            "bird_view": resize_image(observations["birdview_image"], 0.25),
             "sceneview_depth": observations["sceneview_depth"],
             "sceneview_rgb": observations["sceneview_image"],
         }
-        scene_rgb_img = image_dict['sceneview_depth'].astype(np.float32) / 255.0
-        scene_depth_img = image_dict['sceneview_rgb'].astype(np.float32)
+        scene_rgb_img = image_dict['sceneview_rgb'].astype(np.float32) / 255.0
+        scene_depth_img = image_dict['sceneview_depth'].astype(np.float32)[:,:,None]
         step_image = np.concatenate([scene_rgb_img, scene_depth_img], axis=2)
         step_image = np.transpose(step_image, (2, 0, 1))
-        tensor_step_image = torch.tensor(step_image).to(self.cfg.device)
+        tensor_step_image = torch.tensor(step_image).to(self.cfg.device).unsqueeze(0)
         if self.load_action_feasible_pretrain == False:
             self.load_action_feasible_model()
         if self.subtask_pre_flag == False:
