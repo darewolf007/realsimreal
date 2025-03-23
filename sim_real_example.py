@@ -10,7 +10,6 @@ from omegaconf import OmegaConf
 from train_agent import make_policy_agent, make_imageprocess_fn, make_actionprocess_fn
 from reward_model.reward import RewardModel
 from utils.image_util import resize_image
-from agent_policy.few_shot_RL.bc_sac_policy import BCSACPolicy
 
 
 def euler_to_quaternion(roll, pitch, yaw):

@@ -2,6 +2,8 @@ import torch
 from agent_policy.LaNE.sac import DINOE2CSacAgent
 from agent_policy.LaNE.train import LaNE_train_main
 from agent_policy.LaNE.data_augs import center_crop
+from agent_policy.BC_SAC.bc_sac_policy import BC_SAC_train_main
+from agent_policy.BC_SAC.bc_sac_policy import BCSACPolicy
 
 class eval_mode(object):
     def __init__(self, *models):
@@ -28,9 +30,21 @@ class BaseAgentPolicy:
         self.is_train = is_train
         if agent_name == "LaNE":
             self.agent = self.init_LaNE_agent(args)
+        elif agent_name == "BC_SAC":
+            self.agent = self.init_BC_SAC_agent(args)
         else:
             raise NotImplementedError
     
+    def init_BC_SAC_agent(self, args):
+        bc_sac = BCSACPolicy(env = None, device = "cuda", params = args)
+        agent = bc_sac.init_agent(bc_sac.choose_agent("rad_sac"), self.obs_shape, self.action_shape)
+        if self.is_train:
+            print("Training agent")
+        else:
+            print("Loading agent")
+            agent.load(args.model_dir, args.model_step)
+        return agent
+
     def init_LaNE_agent(self, args):   
         agent = DINOE2CSacAgent(
         obs_shape=self.obs_shape,
@@ -85,5 +99,8 @@ class BaseAgentPolicy:
         if self.agent_name == "LaNE":
             torch.multiprocessing.set_start_method("spawn")
             LaNE_train_main(agent = self.agent, args = self.args, env = env, test_env = test_env, post_process_fn=img_post_process_fn, reward_fn=reward_fn, action_pre_process_fn=action_pre_process_fn)
+        elif self.agent_name == "BC_SAC":
+            torch.multiprocessing.set_start_method("spawn")
+            BC_SAC_train_main(agent = None, args = self.args, env = env, test_env = test_env, post_process_fn=img_post_process_fn, reward_fn=reward_fn, action_pre_process_fn=action_pre_process_fn)
         else:
             raise NotImplementedError

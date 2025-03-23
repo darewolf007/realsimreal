@@ -31,10 +31,16 @@ class BCSACPolicy:
         env = None,
         device = "cuda",
         params = None,
+        post_process_fn = None, 
+        reward_fn = None, 
+        action_pre_process_fn = None
     ):
         self.device = device
         self.params = params
         self.env = env
+        self.post_process_fn = post_process_fn
+        self.reward_fn = reward_fn
+        self.action_pre_process_fn = action_pre_process_fn
         if self.params['work_dir'] is not None:
             self.L = Logger(self.params['work_dir'], use_tb=self.params['save_tb'])
             video_dir = policy_utils.make_dir(os.path.join(self.params['work_dir'], "video"))
@@ -118,7 +124,7 @@ class BCSACPolicy:
         IL_agent_name = "rad_sac"
         RL_agent_name = "rad_sac"
         torch.multiprocessing.set_start_method("spawn")
-        # self.train_BC_policy(IL_agent_name=IL_agent_name)
+        self.train_BC_policy(IL_agent_name=IL_agent_name)
         self.train_RL_policy(RL_agent_name=RL_agent_name)
 
     def init_tokenize(self):
@@ -196,6 +202,7 @@ class BCSACPolicy:
 
                 time_start = time.time()
                 obs = self.env.reset()
+                obs = self.post_process_fn(obs)
                 time_acting += time.time() - time_start
                 episode_reward = 0
                 episode_step = 0
@@ -232,9 +239,10 @@ class BCSACPolicy:
 
             time_start = time.time()
 
-            real_action = np.copy(action)
-            real_action[:3] =  action[:3]* agent.replay_buffer.xyz_std[0] + agent.replay_buffer.xyz_mean[0]
+            real_action = self.action_pre_process_fn(action, agent.replay_buffer.xyz_mean[0], agent.replay_buffer.xyz_std[0])
             next_obs, reward, done, info = self.env.step(real_action)
+            post_reward, done, post_reward_info = self.reward_fn(next_obs, real_action, info, reward, reward_type=self.params['reward_model_type'], is_save=False, is_train=False)
+            next_obs = self.post_process_fn(next_obs)
             task_text_token = self.subtask_promot_tokens[self.env.sub_task_idx]
             time_acting += time.time() - time_start
 
@@ -354,6 +362,7 @@ class BCSACPolicy:
         num_successes = 0
         for i in range(num_episodes):
             obs = self.env.reset()
+            obs = self.post_process_fn(obs)
             self.video.init(enabled=(i == 0))
             done = False
             episode_reward = 0
@@ -371,9 +380,10 @@ class BCSACPolicy:
                         action = agent.sample_action(obs, task_text_token)
                     else:
                         action = agent.select_action(obs,task_text_token)
-                real_action = np.copy(action)
-                real_action[:3] =  action[:3]* agent.replay_buffer.xyz_std[0] + agent.replay_buffer.xyz_mean[0]
+                real_action = self.action_pre_process_fn(action, agent.replay_buffer.xyz_mean[0], agent.replay_buffer.xyz_std[0])
                 obs, reward, done, info = self.env.step(real_action)
+                reward, done, _ = self.reward_fn(obs, real_action, info, reward, reward_type=self.params['reward_model_type'], is_save=False, is_train=False)
+                obs = self.post_process_fn(obs)
                 task_text_token = self.subtask_promot_tokens[self.env.sub_task_idx]
                 if done:
                     episode_success = True
@@ -419,3 +429,7 @@ class BCSACPolicy:
         np.save(filename, log_data)
         self.L.dump(step)
         return mean_ep_reward
+
+def BC_SAC_train_main(agent, args, env, test_env, post_process_fn=None, reward_fn=None, action_pre_process_fn=None):
+    policy = BCSACPolicy(env, torch.device("cuda"), args, post_process_fn, reward_fn, action_pre_process_fn)
+    policy.train()
