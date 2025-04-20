@@ -456,7 +456,7 @@ class RealInSimulation:
         self._step(action, True)
         observations, reward, done, info = self._step(action, True)
         target_obj = self.env_info['subtask_object_info'][self.sub_task_idx][1]
-        new_observation = self.pre_process_obs_image(observations, target_obj, 0, is_collect = False, is_crop = True)
+        new_observation = self.pre_process_obs_image(observations, target_obj, 0, is_collect = False, is_crop = self.env_info['is_crop'])
         self.last_observation = new_observation
         return new_observation
 
@@ -662,7 +662,7 @@ if __name__ == "__main__":
     robot_init_pose = np.array([ -1.30487138, -1.69159379, 1.7358554 , -1.55820926, -1.51700765,
        -0.55815155])
     apple_pose = np.array([-2.58006106e-01,  4.77104923e-01,  0.04,  0.707, 0, 0,  0.707])
-    bowl_pose = np.array([-0.42696884,  0.23760321,  0.00,  1, 0, 0,  0])
+    bowl_pose = np.array([-0.42696884,  0.23760321,  0.025,  1, 0, 0,  0])
     scene_dict = {"labels": ["apple", "bowl"], "poses": [apple_pose, bowl_pose], "grasp_obj": [True, False]}
     replay_data_save_path = os.path.join(base_path, "../data/sim_data/")
     env_info = {}
@@ -722,8 +722,8 @@ if __name__ == "__main__":
     env_info['hand_eye'] = handeye_T
     env_info['obj_info'] = scene_dict
     env_info['use_gravity'] = True
-    env_info['data_path'] = "/home/haowen/hw_mine/Real_Sim_Real/data/real_data/easy_task/pick_place_apple_bowl/5/traj/"
-    begin_step = 4
+    env_info['data_path'] = "/home/haowen/hw_mine/Real_Sim_Real/data/real_data/easy_task/pick_place_apple_bowl/1/traj/"
+    begin_step = 2
     # env_info['base_choose'] = "camera"
     env_info['base_choose'] = "robot"
     robot_init_pose = np.array([ 1.85383064, -1.74503436, -1.01362259, -1.64450421, -1.57473976, -0.25406391])
@@ -777,4 +777,4 @@ if __name__ == "__main__":
         # import matplotlib.pyplot as plt
         # plt.imshow(observations['crop_sceneview_image'])
         # plt.show()
-    test_real.replay_demonstration(use_joint_controller= True, is_collect=True, begin_step=begin_step, step=1, dense_reward=True, multi_view = False)
+    test_real.replay_demonstration(use_joint_controller= True, is_collect=True, begin_step=begin_step, step=1, dense_reward=False, multi_view = True)

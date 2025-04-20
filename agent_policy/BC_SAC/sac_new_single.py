@@ -4,9 +4,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 import clip
 import os
-import agent_policy.few_shot_RL.policy_utils as policy_utils
-from agent_policy.few_shot_RL.encoder import make_encoder
-from agent_policy.few_shot_RL.data_augs import random_crop, center_crop, no_aug, batch_center_crop
+import agent_policy.BC_SAC.policy_utils as policy_utils
+from agent_policy.BC_SAC.encoder import make_encoder
+from agent_policy.BC_SAC.data_augs import random_crop, center_crop, no_aug, batch_center_crop
 
 LOG_FREQ = 10000
 

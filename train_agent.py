@@ -13,7 +13,7 @@ ENV_DICT = {
     "PickApplePlaceBowl":PickApplePlaceBowlSimulation}
 
 def make_actionprocess_fn(cfg):
-    if cfg.agent_name == "LaNE":
+    if cfg.agent_name == "LaNE" or cfg.agent_name == "mine":
         def action_postprocess_fn(action, action_mean = None, action_std = None):
             pocess_action = np.copy(action)
             pocess_action[:3] =  action[:3]* action_std + action_mean
@@ -32,10 +32,29 @@ def make_imageprocess_fn(cfg):
             obs = np.transpose(obs, (2, 0, 1))
             return obs
         return img_postprocess_fn
+    elif cfg.agent_name == "mine":
+        view_name_list = [view_name + "_image" for view_name in cfg.reward_camera_name]
+        def img_postprocess_fn(observations):
+            obs_list = []
+            for view_name in view_name_list:
+                obs = observations[view_name]
+                obs = resize_image(obs, 1/12)
+                obs = np.transpose(obs, (2, 0, 1))
+                obs_list.append(obs)
+            return np.concatenate(obs_list, axis=0)
+        return img_postprocess_fn
+    else:
+        raise NotImplementedError
     
-def make_policy_agent(agent_info, agent_name, device, obs_shape, action_shape, is_train):
+def make_policy_agent(cfg, agent_name, device, obs_shape, action_shape, is_train):
+    agent_info = cfg.agent if not cfg.is_finetuning else cfg.finetuning
     base_path = os.path.dirname(os.path.abspath(__file__))
     if agent_name == "LaNE":
+        agent_info['replay_buffer_load_dir'] = os.path.join(base_path, agent_info['replay_buffer_load_dir'])
+        agent = BaseAgentPolicy(agent_info, agent_name, device, obs_shape, action_shape, is_train)
+        return agent
+    elif agent_name == "mine":
+        agent_info['cameras'] = [cam_id for cam_id in range(len(cfg.reward_camera_name))]
         agent_info['replay_buffer_load_dir'] = os.path.join(base_path, agent_info['replay_buffer_load_dir'])
         agent = BaseAgentPolicy(agent_info, agent_name, device, obs_shape, action_shape, is_train)
         return agent
@@ -67,7 +86,7 @@ def eval_agent_in_env(cfg):
     eval_env = make_env(cfg.env_name, OmegaConf.to_container(cfg.env_info, resolve=True))
     obs_shape = (3 * len(cfg.agent.cameras) * cfg.agent.frame_stack, cfg.agent.image_size, cfg.agent.image_size) 
     action_shape = eval_env.action_space.shape
-    test_agent = make_policy_agent(cfg.agent, cfg.agent_name, cfg.device, obs_shape, action_shape, is_train=False)
+    test_agent = make_policy_agent(cfg, cfg.agent_name, cfg.device, obs_shape, action_shape, is_train=False)
     img_post_process_fn = make_imageprocess_fn(cfg)
     reward_fn = RewardModel(cfg)
     action_pre_process_fn = make_actionprocess_fn(cfg)
@@ -91,18 +110,16 @@ def eval_agent_in_env(cfg):
         if done:
             obs = eval_env.reset()
 
-@hydra.main(config_path='configs/pick_lane.yaml', strict=True)
+# @hydra.main(config_path='configs/pick_lane.yaml', strict=True)
 # @hydra.main(config_path='configs/pickplace_lane.yaml', strict=True)
+@hydra.main(config_path='configs/pickplace_mine.yaml', strict=True)
 def train_policy(cfg):
     env = make_env(cfg.env_name, OmegaConf.to_container(cfg.env_info, resolve=True))
     # env.replay(img_post_process_fn=make_imageprocess_fn(cfg), reward_fn=RewardModel(cfg), action_pre_process_fn=make_actionprocess_fn(cfg))
     test_env = make_env(cfg.env_name, OmegaConf.to_container(cfg.env_info, resolve=True))
     obs_shape = (3 * len(cfg.agent.cameras) * cfg.agent.frame_stack, cfg.agent.image_size, cfg.agent.image_size) 
     action_shape = env.action_space.shape
-    if cfg.is_finetuning:
-        agent = make_policy_agent(cfg.finetuning, cfg.agent_name, cfg.device, obs_shape, action_shape, is_train=True)
-    else:
-        agent = make_policy_agent(cfg.agent, cfg.agent_name, cfg.device, obs_shape, action_shape, is_train=True)
+    agent = make_policy_agent(cfg, cfg.agent_name, cfg.device, obs_shape, action_shape, is_train=True)
     agent.train_agent(env, test_env, img_post_process_fn=make_imageprocess_fn(cfg), reward_fn=RewardModel(cfg, base_path=os.path.dirname(os.path.abspath(__file__))), action_pre_process_fn=make_actionprocess_fn(cfg))
 
 if __name__ == "__main__":

@@ -17,9 +17,9 @@ env_info:
   init_rotation_noise_bounds: [-5, 5]
   subtask_max_step: 50
 # camera setting
-  camera_names: ["sceneview", "birdview", "frontview", "rightview"]
-  camera_heights: [1536, 1536, 1536, 1536]
-  camera_widths: [2048, 2048, 2048, 2048]
+  camera_names: ["sceneview", "birdview", "frontview", "rightview", "robot0_eye_in_hand"]
+  camera_heights: [1536, 1536, 1536, 1536, 1536]
+  camera_widths: [2048, 2048, 2048, 2048, 2048]
   camera_depths: true
   is_crop: false # object centered crop, not use now
   crop_image_size: [768, 768]

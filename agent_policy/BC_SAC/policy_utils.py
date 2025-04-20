@@ -7,7 +7,7 @@ from collections import deque
 import random
 from torch.utils.data import Dataset
 from torch import nn
-from agent_policy.few_shot_RL.data_augs import random_crop
+from agent_policy.BC_SAC.data_augs import random_crop
 
 
 class eval_mode(object):

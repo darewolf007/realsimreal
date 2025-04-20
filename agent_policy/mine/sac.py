@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-import agent_policy.LaNE.utils as utils
+import agent_policy.mine.utils as utils
 from .encoder import make_encoder
 from .data_augs import random_crop, center_crop, no_aug, batch_center_crop
 
@@ -45,7 +45,7 @@ class Actor(nn.Module):
         conv_layer_norm=False,
     ):
         super().__init__()
-
+        self.obs_shape = obs_shape
         self.encoder = make_encoder(
             encoder_type,
             obs_shape,
@@ -71,6 +71,9 @@ class Actor(nn.Module):
         self.outputs = dict()
 
     def forward(self, obs, compute_pi=True, compute_log_pi=True, detach_encoder=False):
+        # only choose scene view to predict the action
+        if obs.shape[1] != self.obs_shape[0]:
+            obs = obs[:,:self.obs_shape[0],:,:]
         if isinstance(obs, list):
             pixel_code = self.encoder(obs[0], detach=detach_encoder)
             obs = torch.cat([pixel_code, obs[1]], dim=1)
@@ -488,6 +491,10 @@ class RadSacAgent(object):
             )
 
     def update_sac(self, L, step, obs, action, reward, next_obs, not_done):
+        # only choose scene view to predict the action
+        if obs.shape[1] != self.obs_shape[0]:
+            obs = obs[:,:self.obs_shape[0],:,:]
+            next_obs = next_obs[:,:self.obs_shape[0],:,:]
         if step % self.log_interval == 0:
             L.log("train/batch_reward", reward.mean(), step)
 
@@ -526,180 +533,7 @@ class RadSacAgent(object):
         self.critic.load_state_dict(torch.load("%s/critic_%s.pt" % (model_dir, step)))
 
 
-class E2CSacAgent(RadSacAgent):
-    def update_e2c(self, replay_buffer, L, step, num_updates, init=False, mse_tol=None):
-        for i in range(num_updates):
-            (
-                obs,
-                action,
-                next_obs,
-                obs_non_crop,
-                next_obs_non_crop,
-            ) = replay_buffer.sample_e2c()
-            dkl, mse, ref_kl, predict = self.e2c(
-                obs, action, next_obs, obs_non_crop, next_obs_non_crop
-            )
-            loss = dkl + mse * 128 * 128 * 6 + ref_kl
-
-            self.e2c_optimizer.zero_grad()
-            loss.backward()
-            self.e2c_optimizer.step()
-
-            if init:
-                folder = "train_e2c_init/"
-                if i % 10 == 0:
-                    L._sw.add_scalar(folder + "dkl", dkl, i)
-                    L._sw.add_scalar(folder + "mse", mse, i)
-                    L._sw.add_scalar(folder + "ref_kl", ref_kl, i)
-                    L._sw.add_scalar(folder + "loss", loss, i)
-
-                if i % 100 == 0:
-                    L._sw.add_image(
-                        folder + "GT_1",
-                        next_obs_non_crop[0][:3].detach().cpu().numpy(),
-                        global_step=i,
-                    )
-                    L._sw.add_image(
-                        folder + "Predicted_1",
-                        predict[0][:3].detach().cpu().numpy().clip(0, 1),
-                        global_step=i,
-                    )
-                    L._sw.add_image(
-                        folder + "GT_2",
-                        next_obs_non_crop[0][3:].detach().cpu().numpy(),
-                        global_step=i,
-                    )
-                    L._sw.add_image(
-                        folder + "Predicted_2",
-                        predict[0][3:].detach().cpu().numpy().clip(0, 1),
-                        global_step=i,
-                    )
-
-                if i % 100 == 0:
-                    print(f"E2C loss: {loss}")
-
-            if mse_tol is not None and mse.detach().cpu().item() < mse_tol:
-                break
-
-        if not init:
-            folder = "train_e2c_training/"
-            if step % 10 == 0:
-                L._sw.add_scalar(folder + "updates", i + 1, step)
-                L._sw.add_scalar(folder + "dkl", dkl, step)
-                L._sw.add_scalar(folder + "mse", mse, step)
-                L._sw.add_scalar(folder + "ref_kl", ref_kl, step)
-                L._sw.add_scalar(folder + "loss", loss, step)
-
-            if step % 100 == 0:
-                L._sw.add_image(
-                    folder + "GT_1",
-                    next_obs_non_crop[0][:3].detach().cpu().numpy(),
-                    global_step=step,
-                )
-                L._sw.add_image(
-                    folder + "Predicted_1",
-                    predict[0][:3].detach().cpu().numpy().clip(0, 1),
-                    global_step=step,
-                )
-                L._sw.add_image(
-                    folder + "GT_2",
-                    next_obs_non_crop[0][3:].detach().cpu().numpy(),
-                    global_step=step,
-                )
-                L._sw.add_image(
-                    folder + "Predicted_2",
-                    predict[0][3:].detach().cpu().numpy().clip(0, 1),
-                    global_step=step,
-                )
-
-    def update(self, replay_buffer, L, step, demo_density=None):
-        if self.e2c is None:
-            from e2c import E2C
-
-            self.e2c = E2C(
-                obs_shape=(6, 128, 128),
-                action_dim=self.action_shape[0],
-                z_dimension=16,
-                crop_shape=self.obs_shape,
-            ).to(self.device)
-            self.e2c_optimizer = torch.optim.Adam(self.e2c.parameters(), lr=1e-4)
-
-        if step % 300 == 0 and self.p_reward != 0:
-            self.update_e2c(replay_buffer, L, step, 5000, mse_tol=1e-2)
-
-            one_step_dist_list = []
-
-            for i in range(len(replay_buffer.demo_starts)):
-                i_start = replay_buffer.demo_starts[i]
-                i_end = replay_buffer.demo_ends[i]
-                demo_next_obs = replay_buffer.next_obses[i_start:i_end, :, 8:120, 8:120]
-                demo_next_obs = (
-                    torch.as_tensor(demo_next_obs, device=replay_buffer.device).float()
-                    / 255
-                )
-                z_demo = (
-                    self.e2c.enc(demo_next_obs)[0].unsqueeze(0).detach().cpu().numpy()
-                )
-                self.z_demo_cache[i] = z_demo
-                one_step_dist_list.append(
-                    ((z_demo[0, 1:] - z_demo[0, :-1]) ** 2).sum(axis=1).mean()
-                )
-
-            self.ref_one_step_dist = np.mean(one_step_dist_list)
-
-        obs, action, reward, next_obs, not_done = replay_buffer.sample_rad(
-            self.augs_funcs, demo_density=demo_density
-        )
-
-        if self.p_reward != 0:
-            z_pred = self.e2c.enc(next_obs)[0].unsqueeze(1).detach().cpu().numpy()
-
-            min_dist = np.ones(len(next_obs)) * 10000
-            discount_power = np.zeros(len(next_obs))
-            for i in range(len(replay_buffer.demo_starts)):
-                i_start = replay_buffer.demo_starts[i]
-                i_end = replay_buffer.demo_ends[i]
-                z_demo = self.z_demo_cache[i]
-                z_dist = ((z_demo - z_pred) ** 2).sum(axis=2)
-                z_dist_min = z_dist.min(axis=1)
-                update_min = z_dist_min < min_dist
-                min_dist[update_min] = z_dist_min[update_min]
-                discount_power[update_min] = (
-                    z_dist.shape[1] - z_dist.argmin(axis=1)[update_min]
-                )
-
-            demo_reward_discount = 0.98
-            reward_mask = np.logical_and(
-                min_dist < self.ref_one_step_dist,
-                not_done.detach().cpu().numpy().flatten(),
-            )
-            additional_reward = (
-                np.power(demo_reward_discount, discount_power)
-                * reward_mask
-                * self.p_reward
-            )
-            if step % self.log_interval == 0:
-                L.log(
-                    "train/avg_discount",
-                    (discount_power * reward_mask).sum()
-                    / reward_mask.astype(int).sum(),
-                    step,
-                )
-                L.log(
-                    "train/num_additional_reward",
-                    (min_dist < self.ref_one_step_dist).sum(),
-                    step,
-                )
-
-            reward += torch.as_tensor(
-                additional_reward, device=reward.device
-            ).unsqueeze(1)
-
-        self.update_sac(L, step, obs, action, reward, next_obs, not_done)
-        # No contrastive updates
-
-
-class DINOE2CSacAgent(RadSacAgent):
+class MineSacAgent(RadSacAgent):
     def update_e2c(self, replay_buffer, L, step, num_updates, init=False, mse_tol=None):
         for i in range(num_updates):
             (
@@ -756,7 +590,6 @@ class DINOE2CSacAgent(RadSacAgent):
                 dino_emb1 = self.dino(image1)
                 dino_emb2 = self.dino(image2)
                 return torch.cat([dino_emb1, dino_emb2], dim=1)
-
 
     def update(self, replay_buffer, L, step, demo_density=None):
         if self.e2c is None:
@@ -866,429 +699,21 @@ class DINOE2CSacAgent(RadSacAgent):
 
         self.update_sac(L, step, obs, action, reward, next_obs, not_done)
 
-
-class DINOOnlySacAgent(RadSacAgent):
-    def dino_embed(self, obs):
-        with torch.no_grad():
-            image1, image2 = torch.split(obs, [3, 3], dim=1)
-            dino_emb1 = self.dino(image1)
-            dino_emb2 = self.dino(image2)
-        return torch.cat([dino_emb1, dino_emb2], dim=1)
-
-    def update(self, replay_buffer, L, step, demo_density=None):
-        if self.dino is None:
-            self.dino = torch.hub.load(
-                "facebookresearch/dinov2", "dinov2_vits14_reg"
-            ).to(self.device)
-
-        if step == 0 and self.p_reward != 0:
-            one_step_dist_list = []
-
-            for i in range(len(replay_buffer.demo_starts)):
-                i_start = replay_buffer.demo_starts[i]
-                i_end = replay_buffer.demo_ends[i]
-                demo_next_obs = replay_buffer.next_obses[i_start:i_end, :, 8:120, 8:120]
-                demo_next_obs = (
-                    torch.as_tensor(demo_next_obs, device=replay_buffer.device).float()
-                    / 255
-                )
-                dino_demo_next_obs = self.dino_embed(demo_next_obs)
-                z_demo = dino_demo_next_obs.unsqueeze(0).detach().cpu().numpy()
-                self.z_demo_cache[i] = z_demo
-                one_step_dist_list.append(
-                    ((z_demo[0, 1:] - z_demo[0, :-1]) ** 2).sum(axis=1).mean()
-                )
-
-            self.ref_one_step_dist = np.mean(one_step_dist_list)
-
-        obs, action, reward, next_obs, not_done = replay_buffer.sample_rad(
-            self.augs_funcs, demo_density=demo_density
-        )
-
-        if self.p_reward != 0:
-            dino_next_obs = self.dino_embed(next_obs)
-            z_pred = dino_next_obs.unsqueeze(1).detach().cpu().numpy()
-
-            min_dist = np.ones(len(next_obs)) * 10000
-            discount_power = np.zeros(len(next_obs))
-            for i in range(len(replay_buffer.demo_starts)):
-                i_start = replay_buffer.demo_starts[i]
-                i_end = replay_buffer.demo_ends[i]
-                z_demo = self.z_demo_cache[i]
-                z_dist = ((z_demo - z_pred) ** 2).sum(axis=2)
-                z_dist_min = z_dist.min(axis=1)
-                update_min = z_dist_min < min_dist
-                min_dist[update_min] = z_dist_min[update_min]
-                discount_power[update_min] = (
-                    z_dist.shape[1] - z_dist.argmin(axis=1)[update_min]
-                )
-
-            demo_reward_discount = 0.98
-            reward_mask = np.logical_and(
-                min_dist < self.ref_one_step_dist,
-                not_done.detach().cpu().numpy().flatten(),
-            )
-            additional_reward = (
-                np.power(demo_reward_discount, discount_power)
-                * reward_mask
-                * self.p_reward
-            )
-            if step % self.log_interval == 0:
-                L.log(
-                    "train/avg_discount",
-                    (discount_power * reward_mask).sum()
-                    / reward_mask.astype(int).sum(),
-                    step,
-                )
-                L.log(
-                    "train/num_additional_reward",
-                    (min_dist < self.ref_one_step_dist).sum(),
-                    step,
-                )
-
-            reward += torch.as_tensor(
-                additional_reward, device=reward.device
-            ).unsqueeze(1)
-
-        self.update_sac(L, step, obs, action, reward, next_obs, not_done)
-
-
-class E2CILQRAgent(object):
-    def __init__(
-        self,
-        obs_shape,
-        action_shape,
-        device,
-        hidden_dim=256,
-        discount=0.99,
-        init_temperature=0.01,
-        alpha_lr=1e-3,
-        alpha_beta=0.9,
-        actor_lr=1e-3,
-        actor_beta=0.9,
-        actor_log_std_min=-10,
-        actor_log_std_max=2,
-        actor_update_freq=2,
-        critic_lr=1e-3,
-        critic_beta=0.9,
-        critic_tau=0.005,
-        critic_target_update_freq=2,
-        encoder_type="pixel",
-        encoder_feature_dim=32,
-        encoder_tau=0.005,
-        num_layers=4,
-        num_filters=32,
-        log_interval=100,
-        detach_encoder=False,
-        latent_dim=128,
-        data_augs="",
-        v_clip_low=None,
-        v_clip_high=None,
-        action_noise=None,
-        pretrain_mode=None,
-        conv_layer_norm=False,
-        p_reward=1,
-    ):
-        self.device = device
-        self.discount = discount
-        self.critic_tau = critic_tau
-        self.encoder_tau = encoder_tau
-        self.actor_update_freq = actor_update_freq
-        self.critic_target_update_freq = critic_target_update_freq
-        self.log_interval = log_interval
-        self.image_size = obs_shape[-1]
-        self.latent_dim = latent_dim
-        self.detach_encoder = detach_encoder
-        self.encoder_type = encoder_type
-        self.data_augs = data_augs
-
-        self.v_clip_low = v_clip_low
-        self.v_clip_high = v_clip_high
-        self.action_noise = action_noise
-        self.pretrain_mode = pretrain_mode
-
-        self.e2c = None
-        self.dino = None
-        self.e2c_optimizer = None
-        self.obs_shape = obs_shape
-        self.action_shape = action_shape
-        self.hidden_dim = hidden_dim
-        self.encoder_feature_dim = encoder_feature_dim
-        self.num_layers = num_layers
-        self.num_filters = num_filters
-
-        self.p_reward = p_reward
-        self.z_demo_cache = {}
-        self.ref_one_step_dist = None
-
-        self.augs_funcs = {}
-
-        aug_to_func = {
-            "crop": random_crop,
-            "no_aug": no_aug,
-        }
-
-        for aug_name in self.data_augs.split("-"):
-            if aug_name:
-                assert aug_name in aug_to_func, "invalid data aug string"
-                self.augs_funcs[aug_name] = aug_to_func[aug_name]
-
-        from e2c import E2C
-
-        self.e2c = E2C(
-            obs_shape=(6, 128, 128),
-            action_dim=self.action_shape[0],
-            z_dimension=16,
-            crop_shape=self.obs_shape,
-        ).to(self.device)
-        self.e2c_optimizer = torch.optim.Adam(self.e2c.parameters(), lr=1e-4)
-        self.replay_buffer: utils.ReplayBuffer = None
-        self.training = None
-
-    def train(self, training=True):
-        self.training = training
-
-    @property
-    def alpha(self):
-        return self.log_alpha.exp()
-
-    def obs_to_torch(self, obs):
-        obs = torch.FloatTensor(obs).to(self.device)
-        obs = obs.unsqueeze(0)
-        return obs
-
     def save(self, model_dir, step):
-        return
+        super().save(model_dir, step)
+        if self.e2c is not None:
+            torch.save(
+                self.e2c.state_dict(), "%s/e2c_%s.pt" % (model_dir, step)
+            )
+            torch.save(
+                self.dino.state_dict(), "%s/dino_%s.pt" % (model_dir, step)
+            )
 
     def load(self, model_dir, step):
-        return
-
-    def update_e2c(self, replay_buffer, L, step, num_updates, init=False, mse_tol=None):
-        for i in range(num_updates):
-            (
-                obs,
-                action,
-                next_obs,
-                obs_non_crop,
-                next_obs_non_crop,
-            ) = replay_buffer.sample_e2c()
-            dkl, mse, ref_kl, predict = self.e2c(
-                obs, action, next_obs, obs_non_crop, next_obs_non_crop
-            )
-            loss = dkl + mse * 128 * 128 * 6 + ref_kl
-
-            self.e2c_optimizer.zero_grad()
-            loss.backward()
-            self.e2c_optimizer.step()
-
-            if init:
-                folder = "train_e2c_init/"
-                if i % 10 == 0:
-                    L._sw.add_scalar(folder + "dkl", dkl, i)
-                    L._sw.add_scalar(folder + "mse", mse, i)
-                    L._sw.add_scalar(folder + "ref_kl", ref_kl, i)
-                    L._sw.add_scalar(folder + "loss", loss, i)
-
-                if i % 100 == 0:
-                    L._sw.add_image(
-                        folder + "GT_1",
-                        next_obs_non_crop[0][:3].detach().cpu().numpy(),
-                        global_step=i,
-                    )
-                    L._sw.add_image(
-                        folder + "Predicted_1",
-                        predict[0][:3].detach().cpu().numpy().clip(0, 1),
-                        global_step=i,
-                    )
-                    L._sw.add_image(
-                        folder + "GT_2",
-                        next_obs_non_crop[0][3:].detach().cpu().numpy(),
-                        global_step=i,
-                    )
-                    L._sw.add_image(
-                        folder + "Predicted_2",
-                        predict[0][3:].detach().cpu().numpy().clip(0, 1),
-                        global_step=i,
-                    )
-
-                if i % 100 == 0:
-                    print(f"E2C loss: {loss}")
-
-            if mse_tol is not None and mse.detach().cpu().item() < mse_tol:
-                break
-
-        if not init:
-            folder = "train_e2c_training/"
-            if step % 10 == 0:
-                L._sw.add_scalar(folder + "updates", i + 1, step)
-                L._sw.add_scalar(folder + "dkl", dkl, step)
-                L._sw.add_scalar(folder + "mse", mse, step)
-                L._sw.add_scalar(folder + "ref_kl", ref_kl, step)
-                L._sw.add_scalar(folder + "loss", loss, step)
-
-            if step % 100 == 0:
-                L._sw.add_image(
-                    folder + "GT_1",
-                    next_obs_non_crop[0][:3].detach().cpu().numpy(),
-                    global_step=step,
-                )
-                L._sw.add_image(
-                    folder + "Predicted_1",
-                    predict[0][:3].detach().cpu().numpy().clip(0, 1),
-                    global_step=step,
-                )
-                L._sw.add_image(
-                    folder + "GT_2",
-                    next_obs_non_crop[0][3:].detach().cpu().numpy(),
-                    global_step=step,
-                )
-                L._sw.add_image(
-                    folder + "Predicted_2",
-                    predict[0][3:].detach().cpu().numpy().clip(0, 1),
-                    global_step=step,
-                )
-
-    def update(self, replay_buffer, L, step, demo_density=None):
-        self.update_e2c(replay_buffer, L, step, 10, mse_tol=1e-2)
-
-    def compute_goal_embeddings(self):
-        goal_indices = self.replay_buffer.demo_ends - 1
-        goal_obs = self.replay_buffer.next_obses[goal_indices, :, 8:120, 8:120]
-        goal_obs = torch.as_tensor(goal_obs, device=self.device).float() / 255
-        z_goal = self.e2c.enc(goal_obs)[0].unsqueeze(-1)
-        return z_goal.mean(dim=0, keepdim=True)
-
-    def compute_q(self, f_x, f_u, l_x, l_u, l_xx, l_ux, l_uu, V_x, V_xx):
-        # Eqs (5a), (5b) and (5c).
-        Q_x = l_x + f_x.transpose(1, 2) @ V_x
-        Q_u = l_u + f_u.transpose(1, 2) @ V_x
-        Q_xx = l_xx + f_x.transpose(1, 2) @ V_xx @ f_x
-
-        # Eqs (11b) and (11c).
-        mu = 0
-        reg = mu * torch.eye(16, device=self.device).unsqueeze(0)
-        Q_ux = l_ux + f_u.transpose(1, 2) @ (V_xx + reg) @ f_x
-        Q_uu = l_uu + f_u.transpose(1, 2) @ (V_xx + reg) @ f_u
-
-        return Q_x, Q_u, Q_xx, Q_ux, Q_uu
-
-    def ilqr(self, x0, n_steps=10, n_iterations=10):
-        """Perform iLQR optimization"""
-        # x0 is a tensor of shape (batch_size, state_dim, 1)
-        x_list = [x0]
-        u_list = [
-            torch.zeros(1, self.action_shape[0], 1, device=self.device)
-            for _ in range(n_steps)
-        ]
-        with torch.no_grad():
-            goal = self.compute_goal_embeddings()
-            I_x = torch.eye(16, device=self.device).unsqueeze(0)
-            I_u = torch.eye(self.action_shape[0], device=self.device).unsqueeze(0)
-            for _ in range(n_iterations):
-                x_list = [x0]
-                f_x_list = []
-                f_u_list = []
-                l_list = []
-                l_x_list = []
-                l_u_list = []
-                l_xx_list = []
-                l_ux_list = []
-                l_uu_list = []
-                for u in u_list:
-                    x = x_list[-1]
-                    A, B, offset = self.e2c.fm.get_params(x.squeeze(-1))
-                    f_x_list.append(A)
-                    f_u_list.append(B)
-                    x_next = A @ x + B @ u + offset.unsqueeze(-1)
-                    x_list.append(x_next)
-                    # l = (x - goal).T @ I @ (x - goal) + u.T @ I @ u
-                    l_list.append(
-                        (x - goal).transpose(1, 2) @ I_x @ (x - goal)
-                        + u.transpose(1, 2) @ I_u @ u
-                    )
-                    l_x_list.append(I_x @ (x - goal))
-                    l_u_list.append(I_u @ u)
-                    l_xx_list.append(I_x)
-                    l_ux_list.append(
-                        torch.zeros(1, self.action_shape[0], 16, device=self.device)
-                    )
-                    l_uu_list.append(I_u)
-                x = x_list[-1]
-                l_list.append((x - goal).transpose(1, 2) @ I_x @ (x - goal))
-                l_x_list.append(I_x @ (x - goal))
-                l_xx_list.append(I_x)
-
-                # Backward pass
-                V_x = l_x_list[-1]
-                V_xx = l_xx_list[-1]
-
-                k_list = []
-                K_list = []
-
-                for t in reversed(range(n_steps)):
-                    Q_x, Q_u, Q_xx, Q_ux, Q_uu = self.compute_q(
-                        f_x_list[t],
-                        f_u_list[t],
-                        l_x_list[t],
-                        l_u_list[t],
-                        l_xx_list[t],
-                        l_ux_list[t],
-                        l_uu_list[t],
-                        V_x,
-                        V_xx,
-                    )
-
-                    # Eq (6).
-                    k = -torch.linalg.solve(Q_uu, Q_u)
-                    K = -torch.linalg.solve(Q_uu, Q_ux)
-                    k_list.insert(0, k)
-                    K_list.insert(0, K)
-
-                    # Eq (11b).
-                    V_x = Q_x + K.transpose(1, 2) @ Q_uu @ k
-                    V_x += K.transpose(1, 2) @ Q_u + Q_ux.transpose(1, 2) @ k
-
-                    # Eq (11c).
-                    V_xx = Q_xx + K.transpose(1, 2) @ Q_uu @ K
-                    V_xx += K.transpose(1, 2) @ Q_ux + Q_ux.transpose(1, 2) @ K
-                    V_xx = 0.5 * (V_xx + V_xx.transpose(1, 2))  # To maintain symmetry.
-
-                new_x_list = [x0]
-                new_u_list = []
-
-                for t in range(n_steps):
-                    # Eq (12).
-                    new_u_list.append(
-                        torch.clip(
-                            u_list[t]
-                            + k_list[t]
-                            + K_list[t] @ (new_x_list[t] - x_list[t]),
-                            -1,
-                            1,
-                        )
-                    )
-
-                    # Eq (8c).
-                    A, B, offset = self.e2c.fm.get_params(new_x_list[t].squeeze(-1))
-                    new_x_list.append(
-                        A @ new_x_list[t] + B @ new_u_list[t] + offset.unsqueeze(-1)
-                    )
-
-                u_list = new_u_list
-
-        return u_list[0]
-
-    def select_action(self, obs):
-        with torch.no_grad():
-            obs = self.obs_to_torch(obs) / 255
-            x = self.e2c.enc(obs)[0]
-            try:
-                a = self.ilqr(x.unsqueeze(-1)).squeeze(-1)
-            except:
-                a = torch.rand(1, self.action_shape[0], 1, device=self.device) * 2 - 1
-            return np.nan_to_num(a.cpu().numpy()).flatten().clip(-1, 1)
-
-    def sample_action(self, obs):
-        if obs.shape[-1] != self.image_size:
-            obs = center_crop(obs, self.image_size)
-        return self.select_action(obs)
+        super().load(model_dir, step)
+        self.e2c.load_state_dict(
+            torch.load("%s/e2c_%s.pt" % (model_dir, step), map_location=self.device)
+        )
+        self.dino.load_state_dict(
+            torch.load("%s/dino_%s.pt" % (model_dir, step), map_location=self.device)
+        )

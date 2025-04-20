@@ -6,11 +6,11 @@ import time
 import json
 import clip
 import torch.nn.functional as F
-import agent_policy.few_shot_RL.policy_utils as policy_utils
-from agent_policy.few_shot_RL.logger import Logger
-from agent_policy.few_shot_RL.data_augs import center_crop
-from agent_policy.few_shot_RL.video import VideoRecorder
-from agent_policy.few_shot_RL.sac_new_single import (
+import agent_policy.BC_SAC.policy_utils as policy_utils
+from agent_policy.BC_SAC.logger import Logger
+from agent_policy.BC_SAC.data_augs import center_crop
+from agent_policy.BC_SAC.video import VideoRecorder
+from agent_policy.BC_SAC.sac_new_single import (
     RadSacAgent,
     E2CSacAgent,
     DINOE2CSacAgent,

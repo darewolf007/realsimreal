@@ -5,17 +5,14 @@ import os
 import time
 import json
 from omegaconf import OmegaConf
-import agent_policy.LaNE.utils as utils
-import agent_policy.LaNE.env_wrapper as env_wrapper
-from agent_policy.LaNE.data_augs import center_crop
-from agent_policy.LaNE.logger import Logger
-from agent_policy.LaNE.video import VideoRecorder
-from agent_policy.LaNE.sac import (
+import agent_policy.mine.utils as utils
+import agent_policy.mine.env_wrapper as env_wrapper
+from agent_policy.mine.data_augs import center_crop
+from agent_policy.mine.logger import Logger
+from agent_policy.mine.video import VideoRecorder
+from agent_policy.mine.sac import (
     RadSacAgent,
-    E2CSacAgent,
-    DINOE2CSacAgent,
-    DINOOnlySacAgent,
-    E2CILQRAgent,
+    MineSacAgent,
 )
 
 def evaluate(env, agent, video, num_episodes, L, step, args, post_process_fn=None, reward_fn=None, action_pre_process_fn=None):
@@ -110,14 +107,8 @@ def evaluate(env, agent, video, num_episodes, L, step, args, post_process_fn=Non
 def make_agent(obs_shape, action_shape, args, device):
     if args.agent == "rad_sac":
         agent_class = RadSacAgent
-    elif args.agent == "e2c_sac":
-        agent_class = E2CSacAgent
     elif args.agent == "dino_e2c_sac":
-        agent_class = DINOE2CSacAgent
-    elif args.agent == "dino_only_sac":
-        agent_class = DINOOnlySacAgent
-    elif args.agent == "e2c_ilqr":
-        agent_class = E2CILQRAgent
+        agent_class = MineSacAgent
     else:
         agent_class = None
     return agent_class(
@@ -155,7 +146,7 @@ def make_agent(obs_shape, action_shape, args, device):
     )
 
 
-def LaNE_train_main(agent, args, env, test_env, post_process_fn=None, reward_fn=None, action_pre_process_fn=None):
+def mine_train_main(agent, obs_shape, args, env, test_env, post_process_fn=None, reward_fn=None, action_pre_process_fn=None):
     if args.seed == -1:
         args.__dict__["seed"] = np.random.randint(1, 1000000)
     utils.set_seed_everywhere(args.seed)
@@ -180,14 +171,12 @@ def LaNE_train_main(agent, args, env, test_env, post_process_fn=None, reward_fn=
 
     if args.encoder_type == "pixel" or args.encoder_type == "dino":
         cpf = 3 * len(args.cameras)
-        obs_shape = (cpf * args.frame_stack, args.image_size, args.image_size)
         pre_aug_obs_shape = (
             cpf * args.frame_stack,
             args.pre_transform_image_size,
             args.pre_transform_image_size,
         )
     else:
-        obs_shape = env.observation_space.shape
         pre_aug_obs_shape = obs_shape
 
     replay_buffer = utils.ReplayBuffer(

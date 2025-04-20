@@ -171,24 +171,24 @@ def check_data_quality(data_dir, crop):
     # plt.show()
 
 if __name__ == "__main__":
-    data_name = "dense_banana"
+    data_name = "multi_pickplace"
     if "crop" in data_name:
         crop = 1/6
     else:
         crop = 1/12
-    data_dir = "/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/dense/" + data_name
+    data_dir = "/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/multi/" + data_name
     output_path = "/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/pt_data/" 
-    
-    real_data_dir = "/home/haowen/hw_mine/Real_Sim_Real/data/real_data/easy_task/pick_banana"
-    real_pt_output_path = "/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/real_data/pick up banana"
-    if os.path.exists(real_pt_output_path):
-        shutil.rmtree(real_pt_output_path)
-    os.mkdir(real_pt_output_path)
-    convert_real_to_pt(real_data_dir, real_pt_output_path + "/", crop)
-    
-    # check_data_quality(data_dir, crop)
-    # pt_output_path = output_path + data_name
-    # if os.path.exists(pt_output_path):
-    #     shutil.rmtree(pt_output_path)
-    # os.mkdir(pt_output_path)
-    # convert_pickles_to_pt(data_dir, pt_output_path + "/", crop)
+    # convert real data for finetuning
+    # real_data_dir = "/home/haowen/hw_mine/Real_Sim_Real/data/real_data/easy_task/pick_banana"
+    # real_pt_output_path = "/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/real_data/pick up banana"
+    # if os.path.exists(real_pt_output_path):
+    #     shutil.rmtree(real_pt_output_path)
+    # os.mkdir(real_pt_output_path)
+    # convert_real_to_pt(real_data_dir, real_pt_output_path + "/", crop)
+    # convert sim data for policy training
+    check_data_quality(data_dir, crop)
+    pt_output_path = output_path + data_name
+    if os.path.exists(pt_output_path):
+        shutil.rmtree(pt_output_path)
+    os.mkdir(pt_output_path)
+    convert_pickles_to_pt(data_dir, pt_output_path + "/", crop)
