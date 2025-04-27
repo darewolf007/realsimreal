@@ -155,7 +155,26 @@ class Workspace:
             self.best_eval_reward = (total_reward / episode)
             self.save_snapshot(best=True, step=self.global_step)
             print('final period best eval reward:', self.best_eval_reward)
-        
+    
+    def load_demo(self, episodic_list, post_process_fn, reward_fn, action_pre_process_fn = None):
+        for i in range(len(reward_fn.replay_buffer.demo_starts)):
+            i_start = reward_fn.replay_buffer.demo_starts[i]
+            i_end = reward_fn.replay_buffer.demo_ends[i]
+            demo_action = reward_fn.replay_buffer.actions[i_start:i_end, :]
+            demo_obs = reward_fn.replay_buffer.obses[i_start:i_end, :, :, :]
+            demo_not_done = reward_fn.replay_buffer.not_dones[i_start:i_end, :]
+            demo_reward = reward_fn.replay_buffer.rewards[i_start:i_end, :]
+            step_obs = {"sceneview_image": np.transpose(demo_obs[0][0:3, :, :], (1, 2, 0)),
+                        "moveview_image": np.transpose(demo_obs[0][0:3, :, :], (1, 2, 0)),}
+            time_step = post_process_fn(step_obs, reward = demo_reward[0], info = {"truncation": not demo_not_done[0]}, action = demo_action[0], is_reset=True, is_train = True)
+            self.replay_storage.add(time_step)
+            for j in range(1, demo_action.shape[0]):
+                # action = action_pre_process_fn(demo_action[j], action_mean = reward_fn.replay_buffer.xyz_mean, action_std = reward_fn.replay_buffer.xyz_std)
+                step_obs = {"sceneview_image": np.transpose(demo_obs[j][0:3, :, :], (1, 2, 0)),
+                            "moveview_image": np.transpose(demo_obs[j][0:3, :, :], (1, 2, 0)),}
+                time_step = post_process_fn(step_obs, reward = demo_reward[j], info = {"truncation": not demo_not_done[j]}, action = demo_action[j], is_reset=False, is_train = True)
+                self.replay_storage.add(time_step)
+
 
     def train(self, post_process_fn = None, reward_fn = None, action_pre_process_fn = None):
         # predicates
@@ -169,7 +188,7 @@ class Workspace:
         episode_step, episode_reward = 0, 0
         # episodic_list is used to store the observation of each episode
         episodic_list: List[np.ndarray] = []
-
+        self.load_demo(episodic_list, post_process_fn, reward_fn, action_pre_process_fn)
         obs = self.train_env.reset()
         time_step = post_process_fn(obs, reward = 0.0, info = {"truncation": False}, action = np.zeros(self.action_spec.shape), is_reset=True, is_train = True)
         episodic_list.append(time_step.observation[self._obs_channel:].copy())

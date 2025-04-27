@@ -151,7 +151,7 @@ class ReplayBuffer(IterableDataset):
         obs = episode['observation'][idx - 1]
         action = episode['action'][idx]
         next_obs = episode['observation'][idx + self._nstep - 1]
-        not_done = episode['not_done'][idx]
+        not_done = episode['not_done'][idx + self._nstep - 1]
         reward = np.zeros_like(episode['reward'][idx])
         discount = np.ones_like(episode['discount'][idx])
         for i in range(self._nstep):

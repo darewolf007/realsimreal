@@ -88,8 +88,9 @@ def make_imageprocess_fn(cfg):
                 frame_stack_obs = []
                 for i in range(len(cfg.agent.train_camera_name)):
                     obs_image = obs[train_camera_view[i]]
-                    obs_image = resize_image(obs_image, 1/12)
-                    obs_image = np.transpose(obs_image, (2, 0, 1))
+                    obs_image = resize_image(obs_image, target_size=(cfg.img_size, cfg.img_size))
+                    if obs_image.shape[-1] == 3:
+                        obs_image = np.transpose(obs_image, (2, 0, 1))
                     if is_reset:
                         frame_stack_obs.append(train_camera_view_wrapper[i].reset(obs_image))
                     else:
@@ -97,8 +98,9 @@ def make_imageprocess_fn(cfg):
                 frame_stack_obs = np.concatenate(frame_stack_obs, axis=0)
             else:
                 obs_image = obs[train_camera_view[0]]
-                obs_image = resize_image(obs_image, 1/12)
-                obs_image = np.transpose(obs_image, (2, 0, 1))
+                obs_image = resize_image(obs_image, target_size=(cfg.img_size, cfg.img_size))
+                if obs_image.shape[-1] == 3:
+                    obs_image = np.transpose(obs_image, (2, 0, 1))
                 if is_reset:
                     frame_stack_obs =eval_camera_view_wrapper.reset(obs_image)
                 else:
@@ -165,7 +167,7 @@ def eval_agent_in_env(cfg):
     action_shape = eval_env.action_space.shape
     test_agent = make_policy_agent(cfg, cfg.agent_name, cfg.device, obs_shape, action_shape, is_train=False)
     img_post_process_fn = make_imageprocess_fn(cfg)
-    reward_fn = RewardModel(cfg)
+    reward_fn = RewardModel(cfg, base_path=os.path.dirname(os.path.abspath(__file__)))
     action_pre_process_fn = make_actionprocess_fn(cfg)
     obs = eval_env.reset()
     xyz_mean, xyz_std = eval_env.action_info()
@@ -193,7 +195,7 @@ def eval_agent_in_env(cfg):
 @hydra.main(config_path='configs/pickplace_maniwhere.yaml', strict=True)
 def train_policy(cfg):
     env = make_env(cfg.env_name, OmegaConf.to_container(cfg.env_info, resolve=True))
-    # env.replay(img_post_process_fn=make_imageprocess_fn(cfg), reward_fn=RewardModel(cfg), action_pre_process_fn=make_actionprocess_fn(cfg))
+    # env.replay(img_post_process_fn=make_imageprocess_fn(cfg), reward_fn=RewardModel(cfg, base_path=os.path.dirname(os.path.abspath(__file__))), action_pre_process_fn=make_actionprocess_fn(cfg))
     test_env = make_env(cfg.env_name, OmegaConf.to_container(cfg.env_info, resolve=True))
     obs_shape = (3 * len(cfg.agent.cameras) * cfg.agent.frame_stack, cfg.agent.image_size, cfg.agent.image_size) 
     action_shape = env.action_space.shape
