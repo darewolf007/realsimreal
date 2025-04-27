@@ -19,20 +19,13 @@ class VideoRecorder:
         self.fps = fps
         self.frames = []
 
-    def init(self, env, enabled=True):
+    def init(self, obs, enabled=True):
         self.frames = []
         self.enabled = self.save_dir is not None and enabled
-        self.record(env)
+        self.record(obs)
 
-    def record(self, env):
-        if self.enabled:
-            if hasattr(env, 'physics'):
-                frame = env.physics.render(height=self.render_size,
-                                           width=self.render_size,
-                                           camera_id=1)
-            else:
-                frame = env.render()
-            self.frames.append(frame)
+    def record(self, obs):
+        self.frames.append(obs)
 
     def save(self, file_name):
         if self.enabled:

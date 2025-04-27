@@ -9,6 +9,7 @@ obj_info:
   poses: [[-0.3467163,  0.44472795,  0.04,  0.707, 0, 0,  0.707], [-0.49747796,  0.2556481,  0.04,  1, 0, 0,  0]] # object 6-Dof pose, get from pose estimation
   grasp_obj: [True, False] # object proptery, graspable or static, get from task discription (LLM)
 robot_init_qpos: [-1.01362259, -1.74503436, 1.85383064, -1.64450421, -1.57473976, -0.25406391]
+schedule_random: false
 
 # agent base setting
 agent_name: "mine"

@@ -9,11 +9,11 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.transforms as T
 from torchvision.models import resnet
-import utils
+from.. import utils as maniwhere_utils
 import random
 from collections import deque
-from algos.stn import TransformNet_STN_PerImage, TransformNet_STN1, PerspectiveSTNPerImage, PerspectiveSTN
-from utils import random_overlay, random_mask_freq_v2
+from .stn import TransformNet_STN_PerImage, TransformNet_STN1, PerspectiveSTNPerImage, PerspectiveSTN
+from ..utils import random_overlay, random_mask_freq_v2 
 
 class RandomShiftsAug(nn.Module):
     def __init__(self, pad):
@@ -152,7 +152,7 @@ class Actor(nn.Module):
                                     nn.ReLU(inplace=True),
                                     nn.Linear(hidden_dim, action_shape[0]))
 
-        self.apply(utils.weight_init)
+        self.apply(maniwhere_utils.weight_init)
 
     def forward(self, obs, std):
         h = self.trunk(obs)
@@ -161,10 +161,9 @@ class Actor(nn.Module):
         mu = torch.tanh(mu)
         std = torch.ones_like(mu) * std
 
-        dist = utils.TruncatedNormal(mu, std)
+        dist = maniwhere_utils.TruncatedNormal(mu, std)
         return dist
     
-
 class Critic(nn.Module):
     def __init__(self, repr_dim, action_shape, feature_dim, hidden_dim):
         super().__init__()
@@ -182,7 +181,7 @@ class Critic(nn.Module):
             nn.ReLU(inplace=True), nn.Linear(hidden_dim, hidden_dim),
             nn.ReLU(inplace=True), nn.Linear(hidden_dim, 1))
 
-        self.apply(utils.weight_init)
+        self.apply(maniwhere_utils.weight_init)
 
     def forward(self, obs, action):
         h = self.trunk(obs)
@@ -192,7 +191,6 @@ class Critic(nn.Module):
 
         return q1, q2
 
-
 class Auxiliary(nn.Module):
     def __init__(self, repr_dim, feature_dim, temp=0.1):
         super().__init__()
@@ -201,7 +199,7 @@ class Auxiliary(nn.Module):
         
         self.projector = nn.Linear(repr_dim, feature_dim)
 
-        self.apply(utils.weight_init)
+        self.apply(maniwhere_utils.weight_init)
 
     def contrastive_loss(self, q, k):
         logits = torch.einsum('nc,mc->nm', [q, k]) / self.temp
@@ -293,7 +291,7 @@ class ManiAgent:
     def act(self, obs, step, eval_mode):
         obs = torch.as_tensor(obs, device=self.device)
         obs = self.encoder(obs.unsqueeze(0))
-        stddev = utils.schedule(self.stddev_schedule, step)
+        stddev = maniwhere_utils.schedule(self.stddev_schedule, step)
         dist = self.actor(obs, stddev)
         if eval_mode:
             action = dist.mean
@@ -304,7 +302,7 @@ class ManiAgent:
         return action.cpu().numpy()[0]
     
     def read_q(self, obs, step):
-        stddev = utils.schedule(self.stddev_schedule, step)
+        stddev = maniwhere_utils.schedule(self.stddev_schedule, step)
         obs = torch.as_tensor(obs, device=self.device)
         obs = self.encoder(obs.unsqueeze(0))
         dist = self.actor(obs, stddev)
@@ -318,7 +316,7 @@ class ManiAgent:
         metrics = dict()
 
         with torch.no_grad():
-            stddev = utils.schedule(self.stddev_schedule, step)
+            stddev = maniwhere_utils.schedule(self.stddev_schedule, step)
             dist = self.actor(next_obs, stddev)
             next_action = dist.sample(clip=self.stddev_clip)
             target_Q1, target_Q2 = self.critic_target(next_obs, next_action)
@@ -373,7 +371,7 @@ class ManiAgent:
     def update_actor(self, obs, step):
         metrics = dict()
 
-        stddev = utils.schedule(self.stddev_schedule, step)
+        stddev = maniwhere_utils.schedule(self.stddev_schedule, step)
         dist = self.actor(obs, stddev)
         action = dist.sample(clip=self.stddev_clip)
         log_prob = dist.log_prob(action).sum(-1, keepdim=True)
@@ -434,11 +432,11 @@ class ManiAgent:
             aux_loss = calc_aux()
 
             aux_loss.backward()
-            # nn.utils.clip_grad_norm_(self.encoder.parameters(), 25, error_if_nonfinite=False)
+            # nn.maniwhere_utils.clip_grad_norm_(self.encoder.parameters(), 25, error_if_nonfinite=False)
             self.stn_opt.step()
             self.encoder_no_stn_aux_opt.step()
         else:
-            # with torch.no_grad(), utils.eval_mode(self.encoder):
+            # with torch.no_grad(), maniwhere_utils.eval_mode(self.encoder):
             #     aux_loss = calc_aux()
             metrics['aux_contrastive_loss'] = 0
             metrics['aux_l2_loss'] = 0
@@ -455,7 +453,7 @@ class ManiAgent:
 
         return metrics
 
-    def update(self, replay_iter, trajs, step):
+    def update(self, replay_iter, trajs, step, reward_model_fn = None):
         metrics = dict()
 
         if step % self.update_every_steps != 0:
@@ -463,9 +461,14 @@ class ManiAgent:
 
         batch = next(replay_iter)
 
-        obs, action, reward, discount, next_obs = utils.to_torch(
+        obs, action, reward, discount, next_obs, not_done = maniwhere_utils.to_torch(
             batch, self.device)
-
+        if reward_model_fn is not None:
+            additional_reward = torch.zeros_like(reward)
+            for image_idx in range(next_obs.shape[1] // 2 //3):
+                step_next_obs = next_obs[:, image_idx*3:image_idx*3+3, :, :]
+                additional_reward += 0.98 * (reward_model_fn.get_reward(step_next_obs[:,:3,:,:], not_done))
+            reward = reward + additional_reward
         # auxiliary
         l = obs.shape[1] // 2
         fix_obs=obs.float()[:, :l]
@@ -519,7 +522,7 @@ class ManiAgent:
         metrics.update(self.update_auxiliary(step, fix_obs, move_obs, trajs))
         
         # update critic target
-        utils.soft_update_params(self.critic, self.critic_target,
+        maniwhere_utils.soft_update_params(self.critic, self.critic_target,
                                  self.critic_target_tau)
 
         return metrics

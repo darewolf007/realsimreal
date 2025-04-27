@@ -9,6 +9,7 @@ obj_info:
   poses: [[-0.29156371, 0.37589715, 0.04, 0.707, 0, 0, 0.707]] # object 6-Dof pose, get from pose estimation
   grasp_obj: [true] # object proptery, graspable or static, get from task discription (LLM)
 robot_init_qpos: [-1.01362259, -1.74503436, 1.85383064, -1.64450421, -1.57473976, -0.25406391]
+schedule_random: false
 
 # agent base setting
 agent_name: "LaNE"

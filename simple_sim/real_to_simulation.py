@@ -7,6 +7,7 @@ import sys
 sys.path.insert(0, os.getcwd())
 import gymnasium as gym
 import robosuite.utils.camera_utils as CU
+from simple_sim.sim_utils.camera_util import CameraMover
 from simple_sim.sim_utils.base_env import SimpleEnv
 from simple_sim.sim_utils.robotic_ik import mink_ik
 from scipy.spatial.transform import Rotation as R
@@ -36,6 +37,9 @@ class RealInSimulation:
         self.env = SimpleEnv(robot, env_info, has_renderer = has_renderer, *args, **kwargs)
         self.init_invese_kinematics()
         self.init_action_space()
+        # reset the environmet to add moveview not use
+        # self.camera_mover = CameraMover(env=self.env, camera="moveview")
+        # self.move_camera()
 
     def init_action_space(self):
         if self.env_info['use_joint_controller']:
@@ -234,6 +238,8 @@ class RealInSimulation:
         observations = self.pre_process_obs_image(observations, target_obj, self.all_task_step_num, is_collect = is_collect, is_crop = self.env_info['is_crop'])
         self.last_observation = observations
         self.update_info(info)
+        if done:
+            info['truncation'] = True
         # print("info:", info)
         if False:
             current_end_xpos = self.env.sim.data.get_site_xpos('robot0_attachment_site').copy()
@@ -437,7 +443,9 @@ class RealInSimulation:
             info["truncation"] = True
 
     def reset(self, update_env_info = False):
-        self.env.reset()
+        self.env.sim.model.opt.integrator = 2
+        observations = self.env.reset()
+        # self.move_camera()
         self.env.sim.model.opt.integrator = 2
         if update_env_info:
             self.env.update_env_info(self.env_info)
@@ -451,13 +459,13 @@ class RealInSimulation:
         if not self.env_info['use_gravity']:
             self.env.sim.model.opt.gravity[:] = [0.0, 0.0, 0.0]
         self.init_subtask_info()
-        init_pose = np.array(self.env_info['robot_init_qpos'])
+        init_pose = np.array(self.env.init_qpos)
         action = np.concatenate([init_pose, np.array([-1])])
         self._step(action, True)
         observations, reward, done, info = self._step(action, True)
         target_obj = self.env_info['subtask_object_info'][self.sub_task_idx][1]
         new_observation = self.pre_process_obs_image(observations, target_obj, 0, is_collect = False, is_crop = self.env_info['is_crop'])
-        self.last_observation = new_observation
+        # self.last_observation = new_observation
         return new_observation
 
     def is_in_subtask(self, threshold=0.11):
@@ -555,6 +563,12 @@ class RealInSimulation:
             return delata_action
         else:
             return None
+
+    def move_camera(self, target_camera_name = "sceneview"):
+        pos=self.env_info['camera_info'][target_camera_name]["pos"]  + self.env.schedule_scale * (np.random.uniform(low=-0.01, high=0.01, size=self.env_info['camera_info'][target_camera_name]["pos"].shape))
+        quat=self.env_info['camera_info'][target_camera_name]["quat"]  + self.env.schedule_scale * (np.random.uniform(low=-0.01, high=0.01, size=self.env_info['camera_info'][target_camera_name]["quat"].shape))
+        self.camera_mover.set_camera_pose(pos=pos, quat=quat)
+        # self.camera_mover.rotate_camera(point=None, axis=[1.0, 0.0, 0.0], angle=1)
 
     @property
     def observation_shape(self):
@@ -737,9 +751,9 @@ if __name__ == "__main__":
         env_info['camera_heights'] = [768*2, 1536, 1536, 1536]
         env_info['camera_widths'] = [2048, 2048, 2048, 2048]
     else:
-        env_info['camera_heights'] = [768*2, 1536, 1536, 1536, 1536]
-        env_info['camera_widths'] = [2048, 2048, 2048, 2048, 2048]
-    env_info['camera_names'] = ["sceneview", "birdview", "frontview", "rightview", "robot0_eye_in_hand"]
+        env_info['camera_heights'] = [768*2, 1536, 1536, 1536, 1536, 1536]
+        env_info['camera_widths'] = [2048, 2048, 2048, 2048, 2048, 2048]
+    env_info['camera_names'] = ["sceneview", "birdview", "frontview", "rightview", "robot0_eye_in_hand", "moveview"]
     env_info['has_renderer'] = True
     env_info['control_freq'] = 20
     env_info['task_max_step'] = 200
@@ -754,9 +768,9 @@ if __name__ == "__main__":
     env_info['max_action'] = 4
     test_real = RealInSimulation("UR5e",
                                  env_info,
-                                 has_renderer=env_info['has_renderer'],
+                                 has_renderer=True,
                                  has_offscreen_renderer=True,
-                                 render_camera="sceneview",
+                                 render_camera="moveview",
                                  ignore_done=True,
                                  use_camera_obs=True,
                                  camera_depths=env_info['camera_depths'],
@@ -764,8 +778,18 @@ if __name__ == "__main__":
                                  renderer="mjviewer",
                                  camera_heights=env_info['camera_heights'],
                                  camera_widths=env_info['camera_widths'],
-                                 camera_names=env_info['camera_names'],)
+                                 camera_names=env_info['camera_names'],
+                                 schedule_random = True)
     test_real.reset()
+    while(True):
+        test_real.reset()
+        for _ in range(5):
+            observations,_,_,_ = test_real.multi_step(np.array([0, 0, 0, 0, 0, 0, 1]))
+        #     import cv2
+        #     cv2.imshow("sceneview", observations['sceneview_image'][:, :, ::-1])
+        #     cv2.imshow("moveview", observations['moveview_image'][:, :, ::-1])
+        #     cv2.waitKey(2)
+        # cv2.destroyAllWindows()
     # while(True):
     #     test_real.reset()
     #     for _ in range(10):

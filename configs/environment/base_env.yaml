@@ -16,10 +16,12 @@ env_info:
   init_translation_noise_bounds: [-0.005, 0.005]
   init_rotation_noise_bounds: [-5, 5]
   subtask_max_step: 50
+  schedule_random: ${schedule_random} # schedule random object pose
+
 # camera setting
-  camera_names: ["sceneview", "birdview", "frontview", "rightview", "robot0_eye_in_hand"]
-  camera_heights: [1536, 1536, 1536, 1536, 1536]
-  camera_widths: [2048, 2048, 2048, 2048, 2048]
+  camera_names: ["sceneview", "birdview", "frontview", "rightview", "robot0_eye_in_hand", "moveview"]
+  camera_heights: [1536, 1536, 1536, 1536, 1536, 1536]
+  camera_widths: [2048, 2048, 2048, 2048, 2048, 2048]
   camera_depths: true
   is_crop: false # object centered crop, not use now
   crop_image_size: [768, 768]

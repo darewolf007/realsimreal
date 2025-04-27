@@ -15,12 +15,10 @@ import hydra
 import numpy as np
 import torch
 from dm_env import specs
-
-import dmc
-import utils
-from logger import Logger
-from replay_buffer import ReplayBufferStorage, make_replay_loader
-from video import TrainVideoRecorder, VideoRecorder
+from . import utils as maniwhere_utils
+from .logger import Logger
+from .replay_buffer import ReplayBufferStorage, make_replay_loader
+from .video import TrainVideoRecorder, VideoRecorder
 import wandb
 import time
 import gc
@@ -29,38 +27,49 @@ import imageio
 from collections import deque
 
 torch.backends.cudnn.benchmark = True
-from algos.maniwhere import ManiAgent
+from .algos.maniwhere import ManiAgent
+from .utils import CameraViewWrapper
 
-def make_agent(obs_spec, action_spec, cfg):
-    cfg.obs_shape = obs_spec.shape
-    cfg.action_shape = action_spec.shape
-    return ManiAgent(obs_shape = cfg.obs_shape, action_shape = cfg.action_shape,
+
+def make_agent(obs_shape, action_shape, cfg):
+    return ManiAgent(obs_shape = obs_shape, action_shape = action_shape,
                device = cfg.device, lr = cfg.lr, feature_dim = cfg.feature_dim,
                  hidden_dim = cfg.hidden_dim, critic_target_tau = cfg.critic_target_tau, num_expl_steps = cfg.num_expl_steps,
                  update_every_steps = cfg.update_every_steps, stddev_schedule = 'linear(1.0,0.1,600000)', stddev_clip = cfg.stddev_clip, use_tb = False, use_wandb = False,
                  temp = cfg.temp, aux_coef = cfg.aux_coef, aux_l2_coef = cfg.aux_l2_coef, aux_tcc_coef = cfg.aux_tcc_coef, aux_latency = cfg.aux_latency, lr_stn = cfg.lr_stn)
-    # return hydra.utils.instantiate(cfg)
-
 
 class Workspace:
-    def __init__(self, cfg, train_env, test_env):
+    def __init__(self, cfg, train_env, test_env, obs_shape, action_shape):
         self.work_dir = Path.cwd()
         print(f'workspace: {self.work_dir}')
         self.train_env = train_env
-        self.test_env = test_env
+        self.eval_env = test_env
         self.cfg = cfg
-        utils.set_seed_everywhere(cfg.seed)
+        maniwhere_utils.set_seed_everywhere(cfg.seed)
         self.device = torch.device(cfg.device)
         
+        extra_channel = 1 if cfg.use_depth else 0
+        num_frames = cfg.frame_stack
+        self.observation_spec = specs.BoundedArray(
+            shape=np.array([3 * num_frames + extra_channel, cfg.img_size, cfg.img_size]),
+            dtype=np.uint8,
+            minimum=0,
+            maximum=255,
+            name='observation'
+        )
+        self.action_spec = specs.BoundedArray(action_shape,
+                                               dtype = np.float32,
+                                               minimum=-cfg.env_info.max_action,
+                                               maximum=cfg.env_info.max_action,
+                                               name='action')
         self.setup()
-
-        self.agent = make_agent(self.train_env.observation_spec(),
-                                self.train_env.action_spec(),
+        self.agent = make_agent(self.observation_spec.shape,
+                                self.action_spec.shape,
                                 self.cfg.agent)
-        self.timer = utils.Timer()
+        self.timer = maniwhere_utils.Timer()
         self._global_step = 0
         self._global_episode = 0
-        self._obs_channel = self.train_env.observation_spec().shape[0]
+        self._obs_channel = self.observation_spec.shape[0]
         self.best_eval_reward = 0
 
     def setup(self):
@@ -72,16 +81,12 @@ class Workspace:
             wandb.init(project="sim2real", group=self.cfg.wandb_group, name=exp_name)
         # create logger
         self.logger = Logger(self.work_dir, use_tb=self.cfg.use_tb, use_wandb=self.cfg.use_wandb)
-        # create envs
-        # self.train_env = dmc.make(self.cfg.task_name, self.cfg.frame_stack,
-        #                           self.cfg.action_repeat, self.cfg.seed, randomize=True, two_cam=True, img_size=self.cfg.img_size, use_depth=self.cfg.use_depth)
-        # self.eval_env = dmc.make(self.cfg.task_name, self.cfg.frame_stack,
-        #                          self.cfg.action_repeat, self.cfg.seed, img_size=self.cfg.img_size, use_depth=self.cfg.use_depth)
         # create replay buffer
-        data_specs = (self.train_env.observation_spec(),
-                      self.train_env.action_spec(),
+        data_specs = (self.observation_spec,
+                      self.action_spec,
                       specs.Array((1,), np.float32, 'reward'),
-                      specs.Array((1,), np.float32, 'discount'))
+                      specs.Array((1,), np.float32, 'discount'),
+                      specs.Array((1,), np.float32, 'not_done'),)
 
         self.replay_storage = ReplayBufferStorage(data_specs,
                                                   self.work_dir / 'buffer')
@@ -117,20 +122,23 @@ class Workspace:
             self._replay_iter = iter(self.replay_loader)
         return self._replay_iter
 
-    def eval(self):
+    def eval(self, post_process_fn = None, reward_fn = None, action_pre_process_fn = None):
         step, episode, total_reward = 0, 0, 0
-        eval_until_episode = utils.Until(self.cfg.num_eval_episodes)
+        eval_until_episode = maniwhere_utils.Until(self.cfg.num_eval_episodes)
 
         while eval_until_episode(episode):
-            time_step = self.eval_env.reset()
-            self.video_recorder.init(self.eval_env, enabled=(episode == 0))
+            obs = self.eval_env.reset()
+            time_step = post_process_fn(obs, reward = 0.0, info = {"truncation": False}, action = np.zeros(self.action_spec.shape), is_reset=True, is_train = False)
+            self.video_recorder.init(obs["sceneview_image"], enabled=(episode == 0))
             while not time_step.last():
-                with torch.no_grad(), utils.eval_mode(self.agent):
+                with torch.no_grad(), maniwhere_utils.eval_mode(self.agent):
                     action = self.agent.act(time_step.observation,
                                             self.global_step,
                                             eval_mode=True)
-                time_step = self.eval_env.step(action)
-                self.video_recorder.record(self.eval_env)
+                action = action_pre_process_fn(action, action_mean = reward_fn.replay_buffer.xyz_mean, action_std = reward_fn.replay_buffer.xyz_std)
+                obs, reward, done, info = self.eval_env.step(action)
+                time_step = post_process_fn(obs, reward = reward, info = info, action = action, is_reset=False, is_train = False)
+                self.video_recorder.record(obs["sceneview_image"])
                 total_reward += time_step.reward
                 step += 1
 
@@ -149,20 +157,21 @@ class Workspace:
             print('final period best eval reward:', self.best_eval_reward)
         
 
-    def train(self):
+    def train(self, post_process_fn = None, reward_fn = None, action_pre_process_fn = None):
         # predicates
-        train_until_step = utils.Until(self.cfg.num_train_frames,
+        train_until_step = maniwhere_utils.Until(self.cfg.num_train_frames,
                                        self.cfg.action_repeat)
-        seed_until_step = utils.Until(self.cfg.num_seed_frames,
+        seed_until_step = maniwhere_utils.Until(self.cfg.num_seed_frames,
                                       self.cfg.action_repeat)
-        eval_every_step = utils.Every(self.cfg.eval_every_frames,
+        eval_every_step = maniwhere_utils.Every(self.cfg.eval_every_frames,
                                       self.cfg.action_repeat)
 
         episode_step, episode_reward = 0, 0
         # episodic_list is used to store the observation of each episode
         episodic_list: List[np.ndarray] = []
 
-        time_step = self.train_env.reset()
+        obs = self.train_env.reset()
+        time_step = post_process_fn(obs, reward = 0.0, info = {"truncation": False}, action = np.zeros(self.action_spec.shape), is_reset=True, is_train = True)
         episodic_list.append(time_step.observation[self._obs_channel:].copy())
         self.replay_storage.add(time_step)
         self.train_video_recorder.init(time_step.observation)
@@ -190,7 +199,8 @@ class Workspace:
                     self.stored_episodes.append(episodic_list)
                 episodic_list = []
                 # reset env
-                time_step = self.train_env.reset()
+                obs = self.train_env.reset()
+                time_step = post_process_fn(obs, reward = 0.0, info = {"truncation": False}, action = np.zeros(self.action_spec.shape), is_reset=True, is_train = True)
                 episodic_list.append(time_step.observation[self._obs_channel:].copy())
                 self.replay_storage.add(time_step)
                 self.train_video_recorder.init(time_step.observation)
@@ -208,10 +218,10 @@ class Workspace:
             if eval_every_step(self.global_step):
                 self.logger.log('eval_total_time', self.timer.total_time(),
                                 self.global_frame)
-                self.eval()
+                self.eval(post_process_fn, reward_fn, action_pre_process_fn)
 
             # sample action
-            with torch.no_grad(), utils.eval_mode(self.agent):
+            with torch.no_grad(), maniwhere_utils.eval_mode(self.agent):
                 action = self.agent.act(time_step.observation[:self._obs_channel],
                                         self.global_step,
                                         eval_mode=False)
@@ -220,11 +230,13 @@ class Workspace:
 
             # try to update the agent
             if not seed_until_step(self.global_step):
-                metrics = self.agent.update(self.replay_iter, self.stored_episodes, self.global_step)
+                metrics = self.agent.update(self.replay_iter, self.stored_episodes, self.global_step, reward_model_fn=reward_fn)
                 self.logger.log_metrics(metrics, self.global_frame, ty='train')
 
             # take env step
-            time_step = self.train_env.step(action)
+            action = action_pre_process_fn(action, action_mean = reward_fn.replay_buffer.xyz_mean, action_std = reward_fn.replay_buffer.xyz_std)
+            obs, reward, done, info = self.train_env.step(action)
+            time_step = post_process_fn(obs, reward = reward, info = info, action = action, is_reset=False, is_train = True)
             episodic_list.append(time_step.observation[self._obs_channel:].copy())
             
             episode_reward += time_step.reward
@@ -250,18 +262,11 @@ class Workspace:
         for k, v in payload.items():
             self.__dict__[k] = v
 
-
-@hydra.main(config_path='cfgs/camera_aug_config.yaml', strict=True)
-def main(cfg):
-    from camera_train import Workspace as W
+def maniwhere_train_main(agent, args, obs_shape, action_shape, env, test_env, post_process_fn=None, reward_fn=None, action_pre_process_fn=None):
     root_dir = Path.cwd()
-    workspace = W(cfg)
+    workspace = Workspace(args, env, test_env, obs_shape, action_shape)
     snapshot = root_dir / 'snapshot.pt'
     if snapshot.exists():
         print(f'resuming: {snapshot}')
         workspace.load_snapshot()
-    workspace.train()
-
-
-if __name__ == '__main__':
-    main()
+    workspace.train(post_process_fn, reward_fn, action_pre_process_fn)

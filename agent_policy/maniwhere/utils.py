@@ -15,7 +15,72 @@ from torch import distributions as pyd
 from torch.distributions.utils import _standard_normal
 from collections import defaultdict
 from copy import deepcopy
+from typing import Any, NamedTuple
+from dm_env import StepType, specs
+from collections import deque
+import cv2
 
+class CameraViewWrapper:
+    def __init__(self, num_frames, height=84, width=84, depth=False):
+        self._num_frames = num_frames
+        self._frames = deque([], maxlen=num_frames)
+        self._height = height
+        self._width = width
+        self._depth = depth
+        self.channel = 3
+    
+    def _add_depth_noise(self, depth, depth_dependent_noise=True, gaussion_noise_scale=0.01, depth_noise_scale=0.05):
+        gaussion_noise = np.random.normal(0, gaussion_noise_scale, depth.shape)
+        
+        if depth_dependent_noise:
+            depth_scale = depth_noise_scale * np.abs(depth)
+            depth_noise = np.random.normal(0, depth_scale, depth.shape)
+            noisy_depth = depth + gaussion_noise + depth_noise
+        else:
+            noisy_depth = depth + gaussion_noise
+        
+        noisy_depth = cv2.GaussianBlur(noisy_depth, (7, 7), 1)
+
+        return noisy_depth
+
+    def _transform_obs(self, observation, depth_obs=None):
+        obs = np.concatenate(list(self._frames), axis=0)
+        if self._depth:
+            obs = np.concatenate([obs, depth_obs], axis=0)
+        return obs
+    
+    def reset(self, obs, depth_obs=None):
+        for _ in range(self._num_frames):
+            self._frames.append(obs)
+        return self._transform_obs(obs, depth_obs=None)
+
+    def step(self, obs, depth_obs=None):
+        self._frames.append(obs)
+        return self._transform_obs(obs, depth_obs=None)
+
+
+class ExtendedTimeStep(NamedTuple):
+    step_type: Any
+    reward: Any
+    discount: Any
+    observation: Any
+    action: Any
+    not_done: Any
+
+    def first(self):
+        return self.step_type == StepType.FIRST
+
+    def mid(self):
+        return self.step_type == StepType.MID
+
+    def last(self):
+        return self.step_type == StepType.LAST
+
+    def __getitem__(self, attr):
+        if isinstance(attr, str):
+            return getattr(self, attr)
+        else:
+            return tuple.__getitem__(self, attr)
 
 class eval_mode:
     def __init__(self, *models):
@@ -165,12 +230,13 @@ places_dataloader = None
 places_iter = None
 
 def load_config(key=None):
-    path = os.path.join(f'{os.path.dirname(__file__)}/cfgs', 'aug_config.cfg')
-    with open(path) as f:
-        data = json.load(f)
-    if key is not None:
-        return data[key]
-    return data
+    path = os.path.join(f'{os.path.dirname(__file__)}/../../pre_train', 'places365standard_easyformat')
+    return [path]
+    # with open(path) as f:
+    #     data = json.load(f)
+    # if key is not None:
+    #     return data[key]
+    # return data
 
 
 def _load_places(batch_size=256, image_size=84, num_workers=8, use_val=False):

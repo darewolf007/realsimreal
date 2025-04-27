@@ -6,6 +6,8 @@ from agent_policy.BC_SAC.bc_sac_policy import BC_SAC_train_main
 from agent_policy.BC_SAC.bc_sac_policy import BCSACPolicy
 from agent_policy.mine.sac import MineSacAgent
 from agent_policy.mine.train import mine_train_main
+from agent_policy.maniwhere.camera_train import maniwhere_train_main
+from agent_policy.maniwhere.camera_train import make_agent
 
 class eval_mode(object):
     def __init__(self, *models):
@@ -36,6 +38,8 @@ class BaseAgentPolicy:
             self.agent = self.init_BC_SAC_agent(args)
         elif agent_name == "mine":
             self.agent = self.init_mine_agent(args)
+        elif agent_name == "maniwhere":
+            self.agent = self.init_maniwhere_agent(args)
         else:
             raise NotImplementedError
     
@@ -129,6 +133,15 @@ class BaseAgentPolicy:
             agent.load(args.model_dir, 8000)
         return agent
 
+    def init_maniwhere_agent(self, args):
+        agent = make_agent(self.obs_shape, self.action_shape, args.agent)
+        if self.is_train:
+            print("Training agent")
+        else:
+            print("Loading agent")
+            raise NotImplementedError
+        return agent
+
     def get_action(self, obs):
         if self.agent_name == "LaNE":
             obs = center_crop(obs, self.args.image_size)
@@ -155,5 +168,7 @@ class BaseAgentPolicy:
         elif self.agent_name == "mine":
             torch.multiprocessing.set_start_method("spawn")
             mine_train_main(agent = self.agent, obs_shape = self.obs_shape, args = self.args, env = env, test_env = test_env, post_process_fn=img_post_process_fn, reward_fn=reward_fn, action_pre_process_fn=action_pre_process_fn)
+        elif self.agent_name == "maniwhere":
+            maniwhere_train_main(agent = self.agent, obs_shape = self.obs_shape, action_shape = self.action_shape, args = self.args, env = env, test_env = test_env, post_process_fn=img_post_process_fn, reward_fn=reward_fn, action_pre_process_fn=action_pre_process_fn)
         else:
             raise NotImplementedError

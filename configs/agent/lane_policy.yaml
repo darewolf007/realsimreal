@@ -60,7 +60,7 @@ agent:
   alpha_beta: 0.5
 
   # Miscellaneous
-  seed: 1
+  seed: 2
   work_dir: "./"
   save_tb: true
   save_buffer: false
@@ -74,7 +74,7 @@ agent:
   action_noise: null
 
   # Final density of demos sampled from replay buffer
-  final_demo_density: 0.2
+  final_demo_density: 0.15
 
   data_augs: "crop"
   log_interval: 200
