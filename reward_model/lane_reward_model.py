@@ -12,7 +12,7 @@ class DINOE2CSacAgent:
         self.replay_buffer = ReplayBuffer(
         obs_shape=reward_obs_shape,
         action_shape=action_shape,
-        capacity=10000,
+        capacity=500,
         batch_size=1,
         device=device,
         image_size=reward_obs_shape[1],

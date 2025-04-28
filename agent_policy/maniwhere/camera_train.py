@@ -196,6 +196,9 @@ class Workspace:
         self.train_video_recorder.init(time_step.observation)
         metrics = None
         while train_until_step(self.global_step):
+            # try to save snapshot
+            if self.cfg.save_snapshot and (self.global_step % int(2e4) == 0):
+                self.save_snapshot(step=self.global_step)
             if time_step.last():
                 self._global_episode += 1
                 self.train_video_recorder.save(f'{self.global_frame}.mp4')
@@ -223,9 +226,6 @@ class Workspace:
                 episodic_list.append(time_step.observation[self._obs_channel:].copy())
                 self.replay_storage.add(time_step)
                 self.train_video_recorder.init(time_step.observation)
-                # try to save snapshot
-                if self.cfg.save_snapshot and (self.global_step % int(2e4) == 0):
-                    self.save_snapshot(step=self.global_step)
                 episode_step = 0
                 episode_reward = 0
                 
@@ -257,8 +257,8 @@ class Workspace:
             obs, reward, done, info = self.train_env.step(action)
             time_step = post_process_fn(obs, reward = reward, info = info, action = action, is_reset=False, is_train = True)
             episodic_list.append(time_step.observation[self._obs_channel:].copy())
-            
             episode_reward += time_step.reward
+            print("step_reward: ", time_step.reward, "episode_reward: ", episode_reward, "episode_step: ", episode_step, "done: ", done)
             self.replay_storage.add(time_step)
             self.train_video_recorder.record(time_step.observation)
             episode_step += 1

@@ -9,29 +9,33 @@ obj_info:
   poses: [[-0.29156371, 0.37589715, 0.04, 0.707, 0, 0, 0.707]] # object 6-Dof pose, get from pose estimation
   grasp_obj: [true] # object proptery, graspable or static, get from task discription (LLM)
 robot_init_qpos: [-1.01362259, -1.74503436, 1.85383064, -1.64450421, -1.57473976, -0.25406391]
-schedule_random: false
+schedule_random: true
 
 # agent base setting
-agent_name: "LaNE"
+agent_name: "maniwhere"
 device: "cuda"
 train_camera_name: "sceneview" # choose camera for training
 is_finetuning: false
 
-# reward model setting
-reward_model_type: "test" # test, online, offline, action_feasible. test use the reward model in the environment
+# dense reward model setting
+reward_camera_name: ["sceneview"] # choose camera for reward model
+replay_buffer_load_dir: ./data/sim_data/pt_data/${dataset_name} # reward model data
+reward_model_dir: ./results/reward_model/${dataset_name}/reward.pt # reward model path
+offline_dino_dir: ./pre_train/facebookresearch_dinov2_main # dino encoder model path
+
+
+# spare reward model setting
+reward_model_type: "test" # test, online, offline. test use the reward model in the environment
 reward_scale: 100
-use_pre_reward: false
-save_online_image: true # save online vlm image, save image for train reward model
-offline_reward_model_path: "./experiments/offline_reward_model/${task_name}/best_reward_model.pth" # path to the offline reward model
-action_feasible_model_path: "./experiments/action_feasible_model/${task_name}/best_reward_model.pth" # path to the action feasible model
+use_pre_reward: false # use pre reward
+save_online_image: false # save online vlm image, save image for train reward model
 
 now: ${now:%Y-%m-%d}-${now:%H-%M-%S}
 save_dir: ./experiments/${task_name}/${dataset_name}-${env_name}-${agent_name}-${reward_model_type}-${now}
 # load all the default settings
 defaults:
   - environment: base_env
-  - agent: lane_policy
-  # - finetuning: lane_policy_finetuning
+  - agent: maniwhere_policy
 
 hydra:
     name: ${task_name}

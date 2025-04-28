@@ -15,6 +15,7 @@ class SingleViewSimulation(RealInSimulation):
         reward = self.reward(info, action)
         if done:
             info['is_success'] = True
+            info['truncation'] = True
             return observation, reward, done, info
         else:
             info['is_success'] = False
@@ -81,7 +82,7 @@ class SingleViewSimulation(RealInSimulation):
                 # print("test_done", done)
                 # print("test_reward_info", reward_info)
                 # cv2.imshow("replay_obs", np.transpose(new_obs, (1, 2, 0))[:,:,::-1])
-                # cv2.imshow("demo_obs", np.transpose(np.array(demo_obs[step]), (1, 2, 0))[:,:,::-1])
-                # cv2.waitKey(1)
+                cv2.imshow("demo_obs", np.transpose(np.array(demo_obs[step]), (1, 2, 0))[:,:,::-1])
+                cv2.waitKey(1)
         # self.close() # if close, the env can not be used to train agent
         

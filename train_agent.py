@@ -29,7 +29,6 @@ def make_reward_fn(cfg, action_shape = None):
     else:
         raise NotImplementedError
 
-
 def make_actionprocess_fn(cfg):
     if cfg.agent_name == "LaNE" or cfg.agent_name == "mine":
         def action_postprocess_fn(action, action_mean = None, action_std = None):
@@ -192,7 +191,8 @@ def eval_agent_in_env(cfg):
 # @hydra.main(config_path='configs/pick_lane.yaml', strict=True)
 # @hydra.main(config_path='configs/pickplace_lane.yaml', strict=True)
 # @hydra.main(config_path='configs/pickplace_mine.yaml', strict=True)
-@hydra.main(config_path='configs/pickplace_maniwhere.yaml', strict=True)
+# @hydra.main(config_path='configs/pickplace_maniwhere.yaml', strict=True)
+@hydra.main(config_path='configs/pick_maniwhere.yaml', strict=True)
 def train_policy(cfg):
     env = make_env(cfg.env_name, OmegaConf.to_container(cfg.env_info, resolve=True))
     # env.replay(img_post_process_fn=make_imageprocess_fn(cfg), reward_fn=RewardModel(cfg, base_path=os.path.dirname(os.path.abspath(__file__))), action_pre_process_fn=make_actionprocess_fn(cfg))

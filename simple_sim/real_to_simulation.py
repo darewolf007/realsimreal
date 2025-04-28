@@ -238,8 +238,6 @@ class RealInSimulation:
         observations = self.pre_process_obs_image(observations, target_obj, self.all_task_step_num, is_collect = is_collect, is_crop = self.env_info['is_crop'])
         self.last_observation = observations
         self.update_info(info)
-        if done:
-            info['truncation'] = True
         # print("info:", info)
         if False:
             current_end_xpos = self.env.sim.data.get_site_xpos('robot0_attachment_site').copy()
@@ -781,10 +779,10 @@ if __name__ == "__main__":
                                  camera_names=env_info['camera_names'],
                                  schedule_random = True)
     test_real.reset()
-    while(True):
-        test_real.reset()
-        for _ in range(5):
-            observations,_,_,_ = test_real.multi_step(np.array([0, 0, 0, 0, 0, 0, 1]))
+    # while(True):
+    #     test_real.reset()
+    #     for _ in range(5):
+    #         observations,_,_,_ = test_real.multi_step(np.array([0, 0, 0, 0, 0, 0, 1]))
         #     import cv2
         #     cv2.imshow("sceneview", observations['sceneview_image'][:, :, ::-1])
         #     cv2.imshow("moveview", observations['moveview_image'][:, :, ::-1])
