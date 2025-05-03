@@ -6,13 +6,21 @@ from utils.image_util import resize_image, save_image_pkl
 from agent_policy.agent_policy import BaseAgentPolicy
 from simple_sim.environment.pick_environment import PickBananaSimulation
 from simple_sim.environment.pick_place_environment import PickApplePlaceBowlSimulation
+from simple_sim.environment.pour_environment import PourCanSimulation
+from simple_sim.environment.insert_environment import InsertMarkerSimulation
+from simple_sim.environment.stack_environment import StackCanSimulation
+from simple_sim.environment.press_environment import PressButtonSimulation
 from reward_model.reward import RewardModel
 from reward_model.lane_reward_model import DINOE2CSacAgent as LaNERewardModel
 
 ENV_DICT = {
     "PickBanana": PickBananaSimulation,
-    "PickApplePlaceBowl":PickApplePlaceBowlSimulation}
-# add PourCan, PourCheeze, StackCan, InsertMarker
+    "PickApplePlaceBowl":PickApplePlaceBowlSimulation,
+    "PourCan": PourCanSimulation,
+    "StackCan": StackCanSimulation,
+    "InsertMarker": InsertMarkerSimulation,
+    "PressButton": PressButtonSimulation,}
+
 def make_reward_fn(cfg, action_shape = None):
     base_path = os.path.dirname(os.path.abspath(__file__))
     if cfg.agent_name == "LaNE" or cfg.agent_name == "mine":

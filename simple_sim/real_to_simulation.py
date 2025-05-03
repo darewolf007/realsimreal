@@ -779,11 +779,13 @@ if __name__ == "__main__":
                                  camera_names=env_info['camera_names'],
                                  schedule_random = True)
     test_real.reset()
-    # while(True):
-    #     test_real.reset()
-    #     for _ in range(5):
-    #         observations,_,_,_ = test_real.multi_step(np.array([0, 0, 0, 0, 0, 0, 1]))
-        #     import cv2
+    resettime = 0
+    while(True):
+        resettime += 1
+        obs = test_real.reset()
+        cv2.imwrite("sceneview"+ str(resettime)+".png", obs['moveview_image'][:, :, ::-1])
+        for _ in range(5):
+            observations,_,_,_ = test_real.multi_step(np.array([0, 0, 0, 0, 0, 0, 1]))            
         #     cv2.imshow("sceneview", observations['sceneview_image'][:, :, ::-1])
         #     cv2.imshow("moveview", observations['moveview_image'][:, :, ::-1])
         #     cv2.waitKey(2)
@@ -799,4 +801,4 @@ if __name__ == "__main__":
         # import matplotlib.pyplot as plt
         # plt.imshow(observations['crop_sceneview_image'])
         # plt.show()
-    test_real.replay_demonstration(use_joint_controller= True, is_collect=True, begin_step=begin_step, step=1, dense_reward=False, multi_view = True)
+    # test_real.replay_demonstration(use_joint_controller= True, is_collect=True, begin_step=begin_step, step=1, dense_reward=False, multi_view = True)
