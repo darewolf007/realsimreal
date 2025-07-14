@@ -212,7 +212,7 @@ class SimpleEnv(ManipulationEnv):
                 obj_quat = np.array(self.env_info['obj_info']['poses'][idx][3:].copy())
                 if self.env_info['init_noise']:
                     obj_position[:2] += self.schedule_scale * np.random.uniform(self.env_info['init_translation_noise_bounds'][0], self.env_info['init_translation_noise_bounds'][1], size=2)
-                    obj_quat = add_noise_to_rotation_z(obj_quat, self.schedule_scale * self.env_info['init_rotation_noise_bounds'])
+                    obj_quat = add_noise_to_rotation_z(obj_quat, self.schedule_scale * np.array(self.env_info['init_rotation_noise_bounds']))
                 if self.env_info['obj_info']['grasp_obj'][idx]:
                     self.sim.data.set_joint_qpos(obj.joints[0], np.concatenate([obj_position, obj_quat]))
                 else:
