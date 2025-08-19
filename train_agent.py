@@ -4,7 +4,7 @@ import numpy as np
 from omegaconf import OmegaConf
 from utils.image_util import resize_image, save_image_pkl
 from agent_policy.agent_policy import BaseAgentPolicy
-from simple_sim.environment.pick_environment import PickBananaSimulation
+from simple_sim.environment.pick_environment import LiftBananaSimulation
 from simple_sim.environment.pick_place_environment import PickApplePlaceBowlSimulation
 from simple_sim.environment.pour_environment import PourCanSimulation
 from simple_sim.environment.insert_environment import InsertMarkerSimulation
@@ -14,7 +14,7 @@ from reward_model.reward import RewardModel
 from reward_model.lane_reward_model import DINOE2CSacAgent as LaNERewardModel
 
 ENV_DICT = {
-    "PickBanana": PickBananaSimulation,
+    "PickBanana": LiftBananaSimulation,
     "PickApplePlaceBowl":PickApplePlaceBowlSimulation,
     "PourCan": PourCanSimulation,
     "StackCan": StackCanSimulation,
@@ -203,7 +203,7 @@ def eval_agent_in_env(cfg):
 @hydra.main(config_path='configs/pick_maniwhere.yaml', strict=True)
 def train_policy(cfg):
     env = make_env(cfg.env_name, OmegaConf.to_container(cfg.env_info, resolve=True))
-    # env.replay(img_post_process_fn=make_imageprocess_fn(cfg), reward_fn=RewardModel(cfg, base_path=os.path.dirname(os.path.abspath(__file__))), action_pre_process_fn=make_actionprocess_fn(cfg))
+    # env.replay(img_post_process_fn=make_imageprocess_fn(cfg), reward_fn=make_reward_fn(cfg, env.action_space.shape), action_pre_process_fn=make_actionprocess_fn(cfg))
     test_env = make_env(cfg.env_name, OmegaConf.to_container(cfg.env_info, resolve=True))
     obs_shape = (3 * len(cfg.agent.cameras) * cfg.agent.frame_stack, cfg.agent.image_size, cfg.agent.image_size) 
     action_shape = env.action_space.shape

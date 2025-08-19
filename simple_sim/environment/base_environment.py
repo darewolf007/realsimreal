@@ -8,6 +8,7 @@ class SingleViewSimulation(RealInSimulation):
     def __init__(self, robot, env_info, has_renderer, *args, **kwargs):
         super().__init__(robot, env_info, has_renderer, *args, **kwargs)
         self.gripper_change_num = 0   
+        self.reward_collect_list = []
 
     def step(self, action, step_num=1, use_joint_controller=False):
         observation, _, _, info = super().multi_step(action, self.env_info['use_delta'], use_joint_controller, is_collect=False, step_num=step_num, use_euler= self.env_info['use_euler'])
@@ -30,6 +31,7 @@ class SingleViewSimulation(RealInSimulation):
     def reset(self):
         observation = super().reset()
         self.gripper_change_num = 0
+        self.reward_collect_list = []
         return observation
     
     def action_info(self):
@@ -74,7 +76,11 @@ class SingleViewSimulation(RealInSimulation):
                 step_action = traj_action[step]
                 real_action = action_pre_process_fn(step_action, xyz_mean, xyz_std)
                 obs, reward, done, info = self.step(real_action)
-                reward, done, reward_info = reward_fn(obs, real_action, info, reward, reward_type="test", is_save=False, is_train=False)
+                
+                # reward, done, reward_info = reward_fn(obs, real_action, info, reward, reward_type="test", is_save=False, is_train=False)
+                time_step = img_post_process_fn(obs, reward = reward, info = info, action = real_action, is_reset=False, is_train = False)
+                additional_reward = 0.98 * (reward_fn.get_reward(time_step.observation[None,:3,...], torch.tensor(1)))
+                self.reward_collect_list.append(reward+additional_reward.cpu().numpy()[0][0])
                 # new_obs = img_post_process_fn(obs)
                 # print("test_obs", new_obs.shape)
                 # print("test_action", real_action)
@@ -84,5 +90,7 @@ class SingleViewSimulation(RealInSimulation):
                 # cv2.imshow("replay_obs", np.transpose(new_obs, (1, 2, 0))[:,:,::-1])
                 cv2.imshow("demo_obs", np.transpose(np.array(demo_obs[step]), (1, 2, 0))[:,:,::-1])
                 cv2.waitKey(1)
+            
+            np.save(os.path.join("/home/haowen/hw_mine/Real_Sim_Real/", f"lane_reward_collect_list_{i}.npy"), np.array(self.reward_collect_list))
         # self.close() # if close, the env can not be used to train agent
         

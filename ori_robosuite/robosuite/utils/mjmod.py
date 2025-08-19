@@ -8,7 +8,7 @@ https://github.com/openai/mujoco-py/blob/1fe312b09ae7365f0dd9d4d0e453f8da59fae0b
 import copy
 import os
 from collections import defaultdict
-
+import mujoco
 import numpy as np
 from PIL import Image
 
@@ -1270,7 +1270,7 @@ class TextureModder(BaseModder):
         mat_id = self.model.geom_matid[geom_id]
         if mat_id < 0:
             return False
-        tex_id = self.model.mat_texid[mat_id]
+        tex_id = self.model.mat_texid[mat_id][mujoco.mjtTextureRole.mjTEXROLE_RGB]
         if tex_id < 0:
             return False
         return True
@@ -1302,7 +1302,7 @@ class TextureModder(BaseModder):
         assert self._check_geom_for_texture(name)
         geom_id = self.model.geom_name2id(name)
         mat_id = self.model.geom_matid[geom_id]
-        tex_id = self.model.mat_texid[mat_id]
+        tex_id = self.model.mat_texid[mat_id][mujoco.mjtTextureRole.mjTEXROLE_RGB]
         return tex_id
 
     def _name_to_mat_id(self, name):
@@ -1387,7 +1387,7 @@ class Texture:
         self.height = model.tex_height[tex_id]
         self.width = model.tex_width[tex_id]
         self.tex_adr = model.tex_adr[tex_id]
-        self.tex_rgb = model.tex_rgb
+        self.tex_rgb = model.tex_data
 
     @property
     def bitmap(self):

@@ -606,23 +606,23 @@ if __name__ == "__main__":
     # replay_data_save_path = os.path.join(base_path, "../data/sim_data/")
 
     #### pick up banana
-    task_name = "Pick up banana"
-    subtask_1 = "Pick up banana"
-    subtask_1_obj = ["gripper", "banana"]
-    base_path = os.path.dirname(os.path.realpath(__file__))
-    handeye_T_path = os.path.join(base_path, "../configs/ur5_kinect_handeyecalibration_eye_on_base.yaml")
-    handeye_T = get_handeye_T(handeye_T_path)
-    robot_init_pose = np.array([ -1.30487138, -1.69159379, 1.7358554 , -1.55820926, -1.51700765,
-       -0.55815155])
-    banana_pose = np.array([-2.58006106e-01,  4.77104923e-01,  0.04,  0.707, 0, 0,  0.707])
-    scene_dict = {"labels": ["banana"], "poses": [banana_pose], "grasp_obj": [True]}
-    replay_data_save_path = os.path.join(base_path, "../data/sim_data/")
-    env_info = {}
-    env_info['obj_pose_base'] = "robot"
-    env_info['replay_data_save_path'] = replay_data_save_path
-    env_info['task_name'] = task_name
-    env_info['subtask_language_info'] = [subtask_1]
-    env_info['subtask_object_info'] = [subtask_1_obj]
+    # task_name = "Pick up banana"
+    # subtask_1 = "Pick up banana"
+    # subtask_1_obj = ["gripper", "banana"]
+    # base_path = os.path.dirname(os.path.realpath(__file__))
+    # handeye_T_path = os.path.join(base_path, "../configs/ur5_kinect_handeyecalibration_eye_on_base.yaml")
+    # handeye_T = get_handeye_T(handeye_T_path)
+    # robot_init_pose = np.array([ -1.30487138, -1.69159379, 1.7358554 , -1.55820926, -1.51700765,
+    #    -0.55815155])
+    # banana_pose = np.array([-2.58006106e-01,  4.77104923e-01,  0.04,  0.707, 0, 0,  0.707])
+    # scene_dict = {"labels": ["banana"], "poses": [banana_pose], "grasp_obj": [True]}
+    # replay_data_save_path = os.path.join(base_path, "../data/sim_data/")
+    # env_info = {}
+    # env_info['obj_pose_base'] = "robot"
+    # env_info['replay_data_save_path'] = replay_data_save_path
+    # env_info['task_name'] = task_name
+    # env_info['subtask_language_info'] = [subtask_1]
+    # env_info['subtask_object_info'] = [subtask_1_obj]
 
     #### pick up mustard
     # task_name = "Pick up mustard"
