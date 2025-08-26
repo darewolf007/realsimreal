@@ -33,7 +33,7 @@ def convert_pickles_to_pt(data_dir, output_path, crop):
                     all_obses.append(np.transpose(resize_image(data['obses'], crop), (2, 0, 1)))
                     all_next_obses.append(np.transpose(resize_image(data['next_obses'], crop), (2, 0, 1)))
                     # data['actions'][3:-1] = np.radians(data['actions'][3:-1])
-                    data['actions'][3:-1] = np.array([0,0,0])
+                    # data['actions'][3:-1] = np.array([0,0,0])
                     all_actions.append(data['actions'])
                     if data['rewards'] == 0:
                         all_rewards.append(-1)

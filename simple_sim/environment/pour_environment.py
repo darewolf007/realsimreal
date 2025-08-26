@@ -4,64 +4,93 @@ from simple_sim.environment.base_environment import SingleViewSimulation
 class PourCanSimulation(SingleViewSimulation):
     def __init__(self, robot, env_info, has_renderer, *args, **kwargs):
         super().__init__(robot, env_info, has_renderer, *args, **kwargs)
-        self.grasp_flag = False
-        self.pour_flag = False
-        self.grasp_reward_given = False
+        self.moving_object = "can"
+        self.target_object = "cup"
+        self.pick_reward_given = False
         self.pour_reward_given = False
+        self.gripper_change_num = -1 # pick will change gripper once
+        self.pour_threshold = 0.08
+        if self.env_info['reward_type'] == "dense":
+            self.sub_task_reward_scale = 1
+        else:
+            self.sub_task_reward_scale = 5
 
     def step(self, action, step_num=2):
+        self.is_gripper_change(action)
         return super().step(action, step_num)
+
+    def compute_dense_reward(self):
+        tcp_pose = self.env.sim.data.get_site_xpos('gripper0_right_grip_site').copy()
+        moving_object_pose = self.env.sim.data.get_site_xpos(self.moving_object + "_center_site").copy()
+        target_pose = self.env.sim.data.get_site_xpos(self.target_object + "_center_site").copy() 
+        tcp_to_obj_dist = np.linalg.norm(moving_object_pose - tcp_pose)
+        reaching_reward = 1 - np.tanh(5 * tcp_to_obj_dist)
+        reward = reaching_reward
+        print("reaching_reward", reaching_reward)
+        is_grasped = self.is_grasping(self.moving_object)
+        if is_grasped:
+            reward += self.is_pick_done_from_sim(is_grasped) * self.sub_task_reward_scale
+        print("is_grasped", is_grasped)
+        print("pick_reward_given", self.pick_reward_given)
+        obj_to_goal_dist = np.linalg.norm(target_pose - moving_object_pose)
+        pour_reward = 1 - np.tanh(5 * obj_to_goal_dist)
+        reward += pour_reward * is_grasped
+        print("pour_reward", pour_reward * is_grasped)
+        reward += self.is_pour_done_from_sim() * self.sub_task_reward_scale
+        print("pour_reward_given", self.pour_reward_given)
+        if self.is_sucess():
+            reward = 10 - min(self.gripper_change_num, 5) * self.sub_task_reward_scale
+        return reward
     
-    def reward(self, info, action):
+    
+    def reward(self):
+        additional_reward = - self.robot_collisions * self.sub_task_reward_scale
         if self.env_info['reward_type'] == "sparse":
-            reaching_reward = -1
+            reward = -1
+            is_grasped = self.is_grasping(self.moving_object)
+            reward += self.is_pick_done_from_sim(is_grasped) * self.sub_task_reward_scale
+            reward += self.is_pour_done_from_sim() * self.sub_task_reward_scale
+            if self.is_sucess():
+                reward = 100- min(self.gripper_change_num, 5) * self.sub_task_reward_scale
+        elif self.env_info['reward_type'] == "dense":
+            reward = self.compute_dense_reward()
+        elif self.env_info['reward_type'] == "online_sparse":
+            reward =  -1
         else:
             raise NotImplementedError
-        grasp_reward = 0
-        pour_reward = 0
-        self.is_grasp_done_from_sim(info, action)
-        self.is_pour_done_from_sim(info, action)
-        self.is_grasp_from_sim(info, action)
-        if self.grasp_flag and not self.grasp_reward_given:
-            grasp_reward = 100 - self.gripper_change_num * 10
-            self.grasp_reward_given = True
-            reaching_reward = 0
-        if self.pour_flag and not self.pour_reward_given:
-            pour_reward = 100 - self.gripper_change_num * 10
-            self.pour_reward_given = True
-            reaching_reward = 0
-            
-        return reaching_reward + grasp_reward + pour_reward
+        print("additional_reward", additional_reward)
+        return reward + additional_reward
     
-    def is_sucess(self, info, action):
-        if self.grasp_flag and self.pour_flag:
+    def is_sucess(self):
+        if self.pick_reward_given and self.pour_reward_given:
             return True
         else:
             return False
 
-    def is_grasp_done_from_sim(self, info, action):
-        if action[-1] == 1 and (self.sub_task_idx==1) and (
-            0.10 > info["delta_gripper"] and info["delta_gripper"] > 0.05) and (
-                0.08 > info["gripper_can"]
-            ):
-            self.grasp_flag = True
+    def is_pick_done_from_sim(self, is_grasped):
+        if is_grasped and not self.pick_reward_given:
+            self.pick_reward_given = True
+            return True
+        else:
+            return False
 
-    def is_pour_done_from_sim(self, info, action):
-        if action[-1] == 1 and self.grasp_flag and (self.sub_task_idx==1) and (
-            0.10 > info["delta_gripper"] and info["delta_gripper"] > 0.05) and (
-                0.08 > info["gripper_can"] and 0.1 > info["gripper_cup"]
-            ):
-            self.pour_flag = True
+    def is_pour_done_from_sim(self):
+        moving_object_pose = self.env.sim.data.get_site_xpos(self.moving_object + "_center_site").copy()
+        target_pose = self.env.sim.data.get_site_xpos(self.target_object + "_center_site").copy() 
+        is_obj_poured = (np.linalg.norm(target_pose - moving_object_pose)<= self.pour_threshold)
+        if is_obj_poured and not self.pour_reward_given:
+            self.pour_reward_given = True
+            return True
+        else:
+            return False
         
-    def is_grasp_from_sim(self, info, action):
-        if (self.last_action is not None and self.last_action[-1] == -1 and action[-1] == 1):
-            if info["gripper_can"] < 0.085:
-                self.gripper_change_num += 1
+    def is_gripper_change(self, action):
+        if(self.last_action is not None and self.last_action[-1] == -1 and action[-1] == 1):
+            self.gripper_change_num += 1
 
     def reset(self):
         obs = super().reset()
-        self.grasp_flag = False
-        self.pour_flag = False
-        self.grasp_reward_given = False
+        self.gripper_change_num = -2
+        self.pick_reward_given = False
         self.pour_reward_given = False
         return obs

@@ -104,7 +104,7 @@ class RealInSimulation:
                 obj_quat = pose[3:][[3, 0, 1, 2]]
                 pose[3:] = obj_quat
         elif self.env_info['base_choose'] == "robot":
-            self.env_info['robot_base_pose'] = np.array([0, 0, -0.015, 0, 0, 0, 1])
+            self.env_info['robot_base_pose'] = np.array([0, 0, -0.018, 0, 0, 0, 1])
             if self.env_info['obj_pose_base'] == "camera":
                 robot_to_camera = self.env_info['hand_eye']
                 for pose in self.env_info['obj_info']['poses']:
@@ -283,7 +283,8 @@ class RealInSimulation:
                 joint_data[0], joint_data[2] = joint_data[2], joint_data[0]
                 if joint_data[0] == 0 and joint_data[1] == 0:
                     continue
-                translation_data = collect_data[:3] + np.array([0.0, 0.0, 0.2])
+                # not directly use the real end-effector pose, for joint control translation_data and rotation_data are not use
+                translation_data = collect_data[:3]
                 rotation_data = collect_data[3:-1]
                 if collect_data[-1] == 0:
                     gripper_data = -1
@@ -300,7 +301,8 @@ class RealInSimulation:
                 else:
                     action = np.concatenate([translation, quaternion, np.array([gripper_data])])
                 # if i == file_num:
-                if (self.last_action is not None and self.last_action[-1] != action[-1]) or i == file_num:
+                # if (self.last_action is not None and self.last_action[-1] != action[-1]) or i == file_num:
+                if (self.last_action is not None and self.last_action[-1] == -1 and action[-1] == 1) or i == file_num:
                     self.refine_obj_pose()
                     if play_time == 0:
                         break
@@ -311,12 +313,13 @@ class RealInSimulation:
                 observations, reward, done, info = self.multi_step(action, use_delta=False, use_joint_controller=use_joint_controller, step_num=2, is_collect=False)
                 end_xpos = self.env.sim.data.get_site_xpos('robot0_attachment_site').copy()
                 end_quat = self.env.sim.data.get_site_xmat('robot0_attachment_site').copy()
+                print("end_error", end_xpos - collect_data[:3])
                 end_quat = R.from_matrix(end_quat).as_quat()
                 end_quat = end_quat[[3, 0, 1, 2]]
                 delta_end_xpos = end_xpos - current_end_xpos
                 delta_end_quat = end_quat - current_end_xquat
                 delta_end_euler = quaternion_to_euler(end_quat, quat_format="wxyz", euler_format="xyz") - quaternion_to_euler(current_end_xquat, quat_format="wxyz", euler_format="xyz")
-                delta_end_euler = np.array([0,0,0])
+                # delta_end_euler = np.array([0,0,0])
                 # end_effector_action.append(np.concatenate([end_xpos, quaternion_to_euler(end_quat, quat_format="wxyz", euler_format="xyz"), np.array([gripper_data])]))
                 end_effector_action.append(np.concatenate([delta_end_xpos, delta_end_euler, np.array([gripper_data])]))
                 if self.has_renderer:
@@ -353,7 +356,7 @@ class RealInSimulation:
                     os.mkdir(self.task_data_path + '/crop_' + camera_name)
             self.task_step_data_path = self.task_data_path + '/data/'
             os.mkdir(self.task_step_data_path)
-            np.save(self.env_info['replay_data_save_path'] + self.env_info['task_name'] +"obj_pose.npy", self.env_info['obj_info']['poses'])
+            np.save(self.task_data_path +"/obj_pose.npy", self.env_info['obj_info']['poses'])
         
         if use_joint_controller:
             print("collecting simulation data")
@@ -590,33 +593,40 @@ class RealInSimulation:
         return self.env.robot_collisions()
         
 if __name__ == "__main__":
-    # task_name = "Pour can into a cup"
-    # subtask_1 = "Pick up the can"
-    # subtask_2 = "Pour the can into the cup"
-    # subtask_1_obj = ["gripper", "can"]
-    # subtask_2_obj = ["can", "cup"]
-    # base_path = os.path.dirname(os.path.realpath(__file__))
-    # handeye_T_path = os.path.join(base_path, "../configs/ur5_kinect_handeyecalibration_eye_on_base.yaml")
-    # handeye_T = get_handeye_T(handeye_T_path)
-    # robot_init_pose = np.array([ -1.30487138, -1.69159379, 1.7358554 , -1.55820926, -1.51700765,
-    #    -0.55815155])
-    # can_pose = np.array([[-0.29022616147994995, 0.9859233784675598, -0.04448934271931648, -0.21637749671936035], [-0.5486288070678711, -0.12811657786369324, 0.8261916637420654, 0.23622964322566986], [0.7840760350227356, 0.26419055461883545, 0.5616299510002136, 0.5847076177597046], [0.0, 0.0, 0.0, 1.0]])
-    # cup_pose = np.array([[0.43723738193511963, 0.8989970684051514, -0.02505527436733246, 0.09150402992963791], [0.29450204968452454, -0.16944658756256104, -0.9405087232589722, 0.18733008205890656], [-0.8497599959373474, 0.4038466811180115, -0.3388448655605316, 0.6819711923599243], [0.0, 0.0, 0.0, 1.0]])
-    # scene_dict = {"labels": ["can", "cup"], "poses": [can_pose, cup_pose], "grasp_obj": [True, False]}
-    # replay_data_save_path = os.path.join(base_path, "../data/sim_data/")
+    task_name = "Pour can into a cup"
+    subtask_1 = "Pick up the can"
+    subtask_2 = "Pour the can into the cup"
+    subtask_1_obj = ["gripper", "can"]
+    subtask_2_obj = ["can", "cup"]
+    base_path = os.path.dirname(os.path.realpath(__file__))
+    handeye_T_path = os.path.join(base_path, "../configs/robot/ur5_kinect_handeyecalibration_eye_on_base.yaml")
+    handeye_T = get_handeye_T(handeye_T_path)
+    robot_init_pose = np.array([ -1.30487138, -1.69159379, 1.7358554 , -1.55820926, -1.51700765,
+       -0.55815155])
+    can_pose = np.array([-2.58006106e-01,  4.77104923e-01,  0.04,  0.707, 0, 0,  0.707])
+    cup_pose = np.array([-0.42696884,  0.23760321,  0.025,  1, 0, 0,  0])
+    scene_dict = {"labels": ["can", "cup"], "poses": [can_pose, cup_pose], "grasp_obj": [True, False]}
+    replay_data_save_path = os.path.join(base_path, "../data/sim_data/" + task_name.replace(" ", "_") + "/")
+    env_info = {}
+    env_info['obj_pose_base'] = "robot"
+    env_info['replay_data_save_path'] = replay_data_save_path
+    env_info['task_name'] = task_name
+    env_info['subtask_language_info'] = [subtask_1, subtask_2]
+    env_info['subtask_object_info'] = [subtask_1_obj, subtask_2_obj]
+
 
     #### pick up banana
     # task_name = "Pick up banana"
     # subtask_1 = "Pick up banana"
     # subtask_1_obj = ["gripper", "banana"]
     # base_path = os.path.dirname(os.path.realpath(__file__))
-    # handeye_T_path = os.path.join(base_path, "../configs/ur5_kinect_handeyecalibration_eye_on_base.yaml")
+    # handeye_T_path = os.path.join(base_path, "../configs/robot/ur5_kinect_handeyecalibration_eye_on_base.yaml")
     # handeye_T = get_handeye_T(handeye_T_path)
     # robot_init_pose = np.array([ -1.30487138, -1.69159379, 1.7358554 , -1.55820926, -1.51700765,
     #    -0.55815155])
     # banana_pose = np.array([-2.58006106e-01,  4.77104923e-01,  0.04,  0.707, 0, 0,  0.707])
     # scene_dict = {"labels": ["banana"], "poses": [banana_pose], "grasp_obj": [True]}
-    # replay_data_save_path = os.path.join(base_path, "../data/sim_data/")
+    # replay_data_save_path = os.path.join(base_path, "../data/sim_data/" + task_name.replace(" ", "_") + "/")
     # env_info = {}
     # env_info['obj_pose_base'] = "robot"
     # env_info['replay_data_save_path'] = replay_data_save_path
@@ -629,13 +639,13 @@ if __name__ == "__main__":
     # subtask_1 = "Pick up mustard"
     # subtask_1_obj = ["gripper", "mustard"]
     # base_path = os.path.dirname(os.path.realpath(__file__))
-    # handeye_T_path = os.path.join(base_path, "../configs/ur5_kinect_handeyecalibration_eye_on_base.yaml")
+    # handeye_T_path = os.path.join(base_path, "../configs/robot/ur5_kinect_handeyecalibration_eye_on_base.yaml")
     # handeye_T = get_handeye_T(handeye_T_path)
     # robot_init_pose = np.array([ -1.30487138, -1.69159379, 1.7358554 , -1.55820926, -1.51700765,
     #    -0.55815155])
     # mustard_pose = np.array([-0.36705698,  0.44732425,  0.08,  1, 0, 0,  0])
     # scene_dict = {"labels": ["mustard"], "poses": [mustard_pose], "grasp_obj": [True]}
-    # replay_data_save_path = os.path.join(base_path, "../data/sim_data/")
+    # replay_data_save_path = os.path.join(base_path, "../data/sim_data/" + task_name.replace(" ", "_") + "/")
     # env_info = {}
     # env_info['obj_pose_base'] = "robot"
     # env_info['replay_data_save_path'] = replay_data_save_path
@@ -648,13 +658,13 @@ if __name__ == "__main__":
     # subtask_1 = "Pick up stop_button"
     # subtask_1_obj = ["gripper", "stop_button"]
     # base_path = os.path.dirname(os.path.realpath(__file__))
-    # handeye_T_path = os.path.join(base_path, "../configs/ur5_kinect_handeyecalibration_eye_on_base.yaml")
+    # handeye_T_path = os.path.join(base_path, "../configs/robot/ur5_kinect_handeyecalibration_eye_on_base.yaml")
     # handeye_T = get_handeye_T(handeye_T_path)
     # robot_init_pose = np.array([ -1.30487138, -1.69159379, 1.7358554 , -1.55820926, -1.51700765,
     #    -0.55815155])
     # stop_button_pose = np.array([-0.44419619,  0.35546411,  0.08,  1, 0, 0,  0])
     # scene_dict = {"labels": ["stop_button"], "poses": [stop_button_pose], "grasp_obj": [False]}
-    # replay_data_save_path = os.path.join(base_path, "../data/sim_data/")
+    # replay_data_save_path = os.path.join(base_path, "../data/sim_data/" + task_name.replace(" ", "_") + "/")
     # env_info = {}
     # env_info['obj_pose_base'] = "robot"
     # env_info['replay_data_save_path'] = replay_data_save_path
@@ -663,26 +673,26 @@ if __name__ == "__main__":
     # env_info['subtask_object_info'] = [subtask_1_obj]
 
     #### pick place apple
-    task_name = "Pick up apple and place it to the bowl"
-    subtask_1 = "Pick up apple"
-    subtask_1_obj = ["gripper", "apple"]
-    subtask_2 = "place apple to the bowl"
-    subtask_2_obj = ["apple", "bowl"]
-    base_path = os.path.dirname(os.path.realpath(__file__))
-    handeye_T_path = os.path.join(base_path, "../configs/ur5_kinect_handeyecalibration_eye_on_base.yaml")
-    handeye_T = get_handeye_T(handeye_T_path)
-    robot_init_pose = np.array([ -1.30487138, -1.69159379, 1.7358554 , -1.55820926, -1.51700765,
-       -0.55815155])
-    apple_pose = np.array([-2.58006106e-01,  4.77104923e-01,  0.04,  0.707, 0, 0,  0.707])
-    bowl_pose = np.array([-0.42696884,  0.23760321,  0.025,  1, 0, 0,  0])
-    scene_dict = {"labels": ["apple", "bowl"], "poses": [apple_pose, bowl_pose], "grasp_obj": [True, False]}
-    replay_data_save_path = os.path.join(base_path, "../data/sim_data/")
-    env_info = {}
-    env_info['obj_pose_base'] = "robot"
-    env_info['replay_data_save_path'] = replay_data_save_path
-    env_info['task_name'] = task_name
-    env_info['subtask_language_info'] = [subtask_1, subtask_2]
-    env_info['subtask_object_info'] = [subtask_1_obj, subtask_2_obj]
+    # task_name = "Pick up apple and place it to the bowl"
+    # subtask_1 = "Pick up apple"
+    # subtask_1_obj = ["gripper", "apple"]
+    # subtask_2 = "place apple to the bowl"
+    # subtask_2_obj = ["apple", "bowl"]
+    # base_path = os.path.dirname(os.path.realpath(__file__))
+    # handeye_T_path = os.path.join(base_path, "../configs/robot/ur5_kinect_handeyecalibration_eye_on_base.yaml")
+    # handeye_T = get_handeye_T(handeye_T_path)
+    # robot_init_pose = np.array([ -1.30487138, -1.69159379, 1.7358554 , -1.55820926, -1.51700765,
+    #    -0.55815155])
+    # apple_pose = np.array([-2.58006106e-01,  4.77104923e-01,  0.04,  0.707, 0, 0,  0.707])
+    # bowl_pose = np.array([-0.42696884,  0.23760321,  0.025,  1, 0, 0,  0])
+    # scene_dict = {"labels": ["apple", "bowl"], "poses": [apple_pose, bowl_pose], "grasp_obj": [True, False]}
+    # replay_data_save_path = os.path.join(base_path, "../data/sim_data/" + task_name.replace(" ", "_") + "/")
+    # env_info = {}
+    # env_info['obj_pose_base'] = "robot"
+    # env_info['replay_data_save_path'] = replay_data_save_path
+    # env_info['task_name'] = task_name
+    # env_info['subtask_language_info'] = [subtask_1, subtask_2]
+    # env_info['subtask_object_info'] = [subtask_1_obj, subtask_2_obj]
 
     #### stack can
     # task_name = "stack can to the blue can"
@@ -691,14 +701,14 @@ if __name__ == "__main__":
     # subtask_2 = "place can on the blue_can"
     # subtask_2_obj = ["can", "blue_can"]
     # base_path = os.path.dirname(os.path.realpath(__file__))
-    # handeye_T_path = os.path.join(base_path, "../configs/ur5_kinect_handeyecalibration_eye_on_base.yaml")
+    # handeye_T_path = os.path.join(base_path, "../configs/robot/ur5_kinect_handeyecalibration_eye_on_base.yaml")
     # handeye_T = get_handeye_T(handeye_T_path)
     # robot_init_pose = np.array([ -1.30487138, -1.69159379, 1.7358554 , -1.55820926, -1.51700765,
     #    -0.55815155])
     # can_pose = np.array([-2.58006106e-01,  4.77104923e-01,  0.04,  0.707, 0, 0,  0.707])
     # blue_can_pose = np.array([-0.42696884,  0.23760321,  0.04,  1, 0, 0,  0])
     # scene_dict = {"labels": ["can", "blue_can"], "poses": [can_pose, blue_can_pose], "grasp_obj": [True, True]}
-    # replay_data_save_path = os.path.join(base_path, "../data/sim_data/")
+    # replay_data_save_path = os.path.join(base_path, "../data/sim_data/" + task_name.replace(" ", "_") + "/")
     # env_info = {}
     # env_info['obj_pose_base'] = "robot"
     # env_info['replay_data_save_path'] = replay_data_save_path
@@ -713,7 +723,7 @@ if __name__ == "__main__":
     # subtask_2 = "insert marker to the pen_holder"
     # subtask_2_obj = ["marker", "pen_holder"]
     # base_path = os.path.dirname(os.path.realpath(__file__))
-    # handeye_T_path = os.path.join(base_path, "../configs/ur5_kinect_handeyecalibration_eye_on_base.yaml")
+    # handeye_T_path = os.path.join(base_path, "../configs/robot/ur5_kinect_handeyecalibration_eye_on_base.yaml")
     # handeye_T = get_handeye_T(handeye_T_path)
     # # robot_init_pose = np.array([ -1.30487138, -1.69159379, 1.7358554 , -1.55820926, -1.51700765,
     # #    -0.55815155])
@@ -722,7 +732,7 @@ if __name__ == "__main__":
     # marker_pose = np.array([-0.33288363209095, 0.2773848510654575,  0.08,  0.707, 0, 0,  0.707])
     # pen_holder_pose = np.array([-0.42696884,  0.23760321,  0.00,  1, 0, 0,  0])
     # scene_dict = {"labels": ["marker", "pen_holder"], "poses": [marker_pose, pen_holder_pose], "grasp_obj": [True, False]}
-    # replay_data_save_path = os.path.join(base_path, "../data/sim_data/")
+    # replay_data_save_path = os.path.join(base_path, "../data/sim_data/" + task_name.replace(" ", "_") + "/")
     # env_info = {}
     # env_info['obj_pose_base'] = "robot"
     # env_info['replay_data_save_path'] = replay_data_save_path
@@ -730,16 +740,19 @@ if __name__ == "__main__":
     # env_info['subtask_language_info'] = [subtask_1, subtask_2]
     # env_info['subtask_object_info'] = [subtask_1_obj, subtask_2_obj]
 
+
+    if env_info['replay_data_save_path'] is not None and not os.path.exists(env_info['replay_data_save_path']):
+        os.makedirs(env_info['replay_data_save_path'])
     env_info['hand_eye_path'] = handeye_T_path
     env_info['hand_eye'] = handeye_T
     env_info['obj_info'] = scene_dict
     env_info['use_gravity'] = True
-    env_info['data_path'] = "/home/haowen/hw_mine/Real_Sim_Real/data/real_data/easy_task/pick_place_apple_bowl/1/traj/"
-    begin_step = 2
+    env_info['data_path'] = "/home/haowen/hw_mine/Real_Sim_Real/data/real_data/easy_task/pour_can/5/traj/"
+    begin_step = 3
     # env_info['base_choose'] = "camera"
     env_info['base_choose'] = "robot"
     robot_init_pose = np.array([ 1.85383064, -1.74503436, -1.01362259, -1.64450421, -1.57473976, -0.25406391])
-    robot_init_pose = np.load(env_info['data_path'] + "joint_" + str(begin_step) + ".npy")
+    robot_init_pose = np.load(env_info['data_path'] + "joint_" + str(begin_step-1) + ".npy")
     robot_init_pose[0], robot_init_pose[2] = robot_init_pose[2], robot_init_pose[0]
     env_info['robot_init_qpos'] = robot_init_pose
     env_info['camera_depths'] = True
@@ -768,7 +781,7 @@ if __name__ == "__main__":
                                  env_info,
                                  has_renderer=True,
                                  has_offscreen_renderer=True,
-                                 render_camera="moveview",
+                                 render_camera="sceneview",
                                  ignore_done=True,
                                  use_camera_obs=True,
                                  camera_depths=env_info['camera_depths'],
@@ -779,13 +792,13 @@ if __name__ == "__main__":
                                  camera_names=env_info['camera_names'],
                                  schedule_random = True)
     test_real.reset()
-    resettime = 0
-    while(True):
-        resettime += 1
-        obs = test_real.reset()
-        cv2.imwrite("sceneview"+ str(resettime)+".png", obs['moveview_image'][:, :, ::-1])
-        for _ in range(5):
-            observations,_,_,_ = test_real.multi_step(np.array([0, 0, 0, 0, 0, 0, 1]))            
+    # resettime = 0
+    # while(True):
+    #     resettime += 1
+    #     obs = test_real.reset()
+    #     cv2.imwrite("sceneview"+ str(resettime)+".png", obs['moveview_image'][:, :, ::-1])
+    #     for _ in range(5):
+    #         observations,_,_,_ = test_real.multi_step(np.array([0, 0, 0, 0, 0, 0, 1]))            
         #     cv2.imshow("sceneview", observations['sceneview_image'][:, :, ::-1])
         #     cv2.imshow("moveview", observations['moveview_image'][:, :, ::-1])
         #     cv2.waitKey(2)
@@ -801,4 +814,4 @@ if __name__ == "__main__":
         # import matplotlib.pyplot as plt
         # plt.imshow(observations['crop_sceneview_image'])
         # plt.show()
-    # test_real.replay_demonstration(use_joint_controller= True, is_collect=True, begin_step=begin_step, step=1, dense_reward=False, multi_view = True)
+    test_real.replay_demonstration(use_joint_controller= True, is_collect=True, begin_step=begin_step, step=1, dense_reward=False, multi_view = True)

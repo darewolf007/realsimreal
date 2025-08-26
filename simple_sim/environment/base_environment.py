@@ -12,8 +12,8 @@ class SingleViewSimulation(RealInSimulation):
 
     def step(self, action, step_num=1, use_joint_controller=False):
         observation, _, _, info = super().multi_step(action, self.env_info['use_delta'], use_joint_controller, is_collect=False, step_num=step_num, use_euler= self.env_info['use_euler'])
-        done = self.is_sucess(info, action)
-        reward = self.reward(info, action)
+        done = self.is_sucess()
+        reward = self.reward()
         if done:
             info['is_success'] = True
             info['truncation'] = True
@@ -22,10 +22,10 @@ class SingleViewSimulation(RealInSimulation):
             info['is_success'] = False
         return observation, reward, done, info 
 
-    def reward(self, info, action):
+    def reward(self):
         raise NotImplementedError
 
-    def is_sucess(self, info, action):
+    def is_sucess(self):
         raise NotImplementedError
 
     def reset(self):
@@ -34,6 +34,13 @@ class SingleViewSimulation(RealInSimulation):
         self.reward_collect_list = []
         return observation
     
+    def is_grasping(self, target_object):
+        active_obj = self.env.scene_objects[self.env.env_info['obj_info']['labels'].index(target_object)]
+        is_grasped = np.array(self.env._check_grasp(gripper=self.env.robots[0].gripper,
+                    object_geoms=[g for g in active_obj.contact_geoms])).astype(float)
+        return is_grasped
+
+    #TODO remove this part
     def action_info(self):
         pt_data_path = self.env_info['replay_buffer_load_dir']
         chunks = os.listdir(pt_data_path)
@@ -78,9 +85,7 @@ class SingleViewSimulation(RealInSimulation):
                 obs, reward, done, info = self.step(real_action)
                 
                 # reward, done, reward_info = reward_fn(obs, real_action, info, reward, reward_type="test", is_save=False, is_train=False)
-                time_step = img_post_process_fn(obs, reward = reward, info = info, action = real_action, is_reset=False, is_train = False)
-                additional_reward = 0.98 * (reward_fn.get_reward(time_step.observation[None,:3,...], torch.tensor(1)))
-                self.reward_collect_list.append(reward+additional_reward.cpu().numpy()[0][0])
+
                 # new_obs = img_post_process_fn(obs)
                 # print("test_obs", new_obs.shape)
                 # print("test_action", real_action)
@@ -88,9 +93,13 @@ class SingleViewSimulation(RealInSimulation):
                 # print("test_done", done)
                 # print("test_reward_info", reward_info)
                 # cv2.imshow("replay_obs", np.transpose(new_obs, (1, 2, 0))[:,:,::-1])
-                cv2.imshow("demo_obs", np.transpose(np.array(demo_obs[step]), (1, 2, 0))[:,:,::-1])
-                cv2.waitKey(1)
+                # for mine
+                # time_step = img_post_process_fn(obs, reward = reward, info = info, action = real_action, is_reset=False, is_train = False)
+                # additional_reward = 0.98 * (reward_fn.get_reward(time_step.observation[None,:3,...], torch.tensor(1)))
+                # self.reward_collect_list.append(reward+additional_reward.cpu().numpy()[0][0])
+                # cv2.imshow("demo_obs", np.transpose(np.array(demo_obs[step]), (1, 2, 0))[:,:,::-1])
+                # cv2.waitKey(1)
             
             np.save(os.path.join("/home/haowen/hw_mine/Real_Sim_Real/", f"lane_reward_collect_list_{i}.npy"), np.array(self.reward_collect_list))
-        # self.close() # if close, the env can not be used to train agent
+        self.close() # if close, the env can not be used to train agent
         

@@ -1,22 +1,26 @@
 env_info:
 # task setting
-  task_name: ${task_name}
-  subtask_language_info: ${subtask_language_info}
-  subtask_object_info: ${subtask_object_info}
-  robot_init_qpos: ${robot_init_qpos}
+  task_name: "Pour can into a cup"
+  subtask_language_info: ["Pick up the can", "Pour the can into the cup"]
+  subtask_object_info: [["gripper", "can"], ["can", "cup"]]
+  robot_init_qpos: [ -1.30487138, -1.69159379, 1.7358554 , -1.55820926, -1.51700765, -0.55815155]
 # construct the task specific environment
   base_choose: "robot" # choose world base coordinate, robot or camera
   obj_pose_base: "robot" # init object pose base coordinate, robot or camera
   use_gravity: true
   has_renderer: false
   hand_eye_path: ./configs/robot/ur5_kinect_handeyecalibration_eye_on_base.yaml
-  obj_info: ${obj_info}
+  obj_info:
+    labels: ["can", "cup"] # object label, get from task discription (LLM)
+    poses: [[-0.2163775, 0.23622964, 0.58470762, -0.54217134, 0.26130275, 0.38524202, 0.69954249], [0.09150403, 0.18733008, 0.68197119, 0.48190924, 0.69741106,  0.42783199, -0.31359383]] # object 6-Dof pose, get from pose estimation
+    grasp_obj: [True, False] # object proptery, graspable or static, get from task discription (LLM)
+
 # simulation environment setting
-  init_noise: true # add noise to init object pose
+  init_noise: false # add noise to init object pose
   init_translation_noise_bounds: [-0.005, 0.005]
   init_rotation_noise_bounds: [-5, 5]
-  subtask_max_step: ${subtask_max_step}
-  schedule_random: ${schedule_random} # schedule random object pose
+  subtask_max_step: 50
+  schedule_random: false # schedule random object pose
 
 # camera setting
   camera_names: ["sceneview", "birdview", "frontview", "rightview", "robot0_eye_in_hand", "moveview"]

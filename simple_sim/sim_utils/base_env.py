@@ -130,6 +130,7 @@ class SimpleEnv(ManipulationEnv):
         base_path = os.path.dirname(os.path.realpath(__file__))
         obj_xml = os.path.join(base_path, "../asset/external_area.xml")
         mujoco_arena = ExternalArea(xml_path_completion(obj_xml))
+        self.mujoco_arena = mujoco_arena
         for view_name, view_info in self.env_info['camera_info'].items():
             mujoco_arena.set_camera(
                 camera_name=view_name,
@@ -186,7 +187,7 @@ class SimpleEnv(ManipulationEnv):
             self.robots[0].robot_model.set_base_xpos(robot_xpos.tolist())
             self.robots[0].robot_model._elements["root_body"].set("quat", array_to_string(robot_quat))
             self.robots[0].init_qpos = self.init_qpos + self.schedule_scale * (np.random.uniform(low=-0.01, high=0.01, size=self.init_qpos.shape))
-            self.init_qpos = self.robots[0].init_qpos
+            # self.init_qpos = self.robots[0].init_qpos
             base_path = os.path.dirname(os.path.realpath(__file__))
             obj_xml = os.path.join(base_path, "../asset/external_area.xml")
             mujoco_arena = ExternalArea(xml_path_completion(obj_xml))
@@ -197,11 +198,11 @@ class SimpleEnv(ManipulationEnv):
                     quat=view_info["quat"],
                     fovy = np.array([76.22424707826806])
                 )
-            self.model = ManipulationTask(
-                mujoco_arena=mujoco_arena,
-                mujoco_robots=[robot.robot_model for robot in self.robots],
-                mujoco_objects=self.scene_objects,
-            )
+            # self.model = ManipulationTask(
+            #     mujoco_arena=mujoco_arena,
+            #     mujoco_robots=[robot.robot_model for robot in self.robots],
+            #     mujoco_objects=self.scene_objects,
+            # )
             super()._reset_internal()
             # TODO: rewrite move camera base on fix scene view
             self.sim.data.set_mocap_pos(self.mover_camera_name, view_info["pos"]  + self.schedule_scale * (np.random.uniform(low=-0.03, high=0.03, size=view_info["pos"].shape)))
@@ -243,7 +244,8 @@ class SimpleEnv(ManipulationEnv):
         if self.check_contact(self.robots[0].robot_model):
             return True
         elif self.robots[0].check_q_limits():
-            return True
+            # this is too sensitive, so we just return False
+            return False
         else:
             return False
         

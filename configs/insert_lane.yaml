@@ -1,15 +1,16 @@
 # task base setting
-task_name: "Pick up banana"
-dataset_name: "pick up banana"
-env_name: "PickBanana"
-subtask_language_info: ["Pick up banana"]  # get form task discription (LLM)
-subtask_object_info: [["gripper", "banana"]] # object discription, first is the moving object, second is the target object
+task_name: "insert marker"
+dataset_name: "insert marker"
+env_name: "InsertMarker"
+subtask_language_info: ["Pick up marker", "insert marker to the pen_holder"]  # get form task discription (LLM)
+subtask_object_info: [["gripper", "marker"], ["marker", "pen_holder"]] # object discription, first is the moving object, second is the target object
 obj_info:
-  labels: ["banana"] # object label, get from task discription (LLM)
-  poses: [[-0.29156371, 0.37589715, 0.04, 0.707, 0, 0, 0.707]] # object 6-Dof pose, get from pose estimation
-  grasp_obj: [true] # object proptery, graspable or static, get from task discription (LLM)
-robot_init_qpos: [-1.01362259, -1.74503436, 1.85383064, -1.64450421, -1.57473976, -0.25406391]
+  labels: ["marker", "pen_holder"] # object label, get from task discription (LLM)
+  poses: [[-0.33288363209095, 0.2773848510654575, 0.08, 0.707, 0, 0, 0.707], [-0.37417705225104425, 0.5138674168057255, 0, 1, 0, 0, 0]] # object 6-Dof pose, get from pose estimation
+  grasp_obj: [True, False] # object proptery, graspable or static, get from task discription (LLM)
+robot_init_qpos: [-1.0193360487567347, -1.6555258236327113, 2.0492919127093714, -1.9293281040587367, -1.5750640074359339, -0.2582805792437952]
 schedule_random: false
+subtask_max_step: 50
 
 # agent base setting
 agent_name: "LaNE"

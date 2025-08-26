@@ -10,6 +10,7 @@ obj_info:
   grasp_obj: [True, False] # object proptery, graspable or static, get from task discription (LLM)
 robot_init_qpos: [-1.01362259, -1.74503436, 1.85383064, -1.64450421, -1.57473976, -0.25406391]
 schedule_random: true
+subtask_max_step: 50
 
 # agent base setting
 agent_name: "maniwhere"
