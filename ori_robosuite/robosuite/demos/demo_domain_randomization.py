@@ -12,42 +12,43 @@ from robosuite.wrappers import DomainRandomizationWrapper
 macros.USING_INSTANCE_RANDOMIZATION = True
 
 if __name__ == "__main__":
-    assert mujoco.__version__ == "3.1.1", "Script requires mujoco-py version 3.1.1 to run"
+    # assert mujoco.__version__ == "3.1.1", "Script requires mujoco-py version 3.1.1 to run"
     # Create dict to hold options that will be passed to env creation call
     options = {}
 
-    # print welcome info
-    print("Welcome to robosuite v{}!".format(suite.__version__))
-    print(suite.__logo__)
+    # # print welcome info
+    # print("Welcome to robosuite v{}!".format(suite.__version__))
+    # print(suite.__logo__)
 
-    # Choose environment and add it to options
-    options["env_name"] = choose_environment()
+    # # Choose environment and add it to options
+    # options["env_name"] = choose_environment()
 
-    # If a multi-arm environment has been chosen, choose configuration and appropriate robot(s)
-    if "TwoArm" in options["env_name"]:
-        # Choose env config and add it to options
-        options["env_configuration"] = choose_multi_arm_config()
+    # # If a multi-arm environment has been chosen, choose configuration and appropriate robot(s)
+    # if "TwoArm" in options["env_name"]:
+    #     # Choose env config and add it to options
+    #     options["env_configuration"] = choose_multi_arm_config()
 
-        # If chosen configuration was bimanual, the corresponding robot must be Baxter. Else, have user choose robots
-        if options["env_configuration"] == "bimanual":
-            options["robots"] = "Baxter"
-        else:
-            options["robots"] = []
+    #     # If chosen configuration was bimanual, the corresponding robot must be Baxter. Else, have user choose robots
+    #     if options["env_configuration"] == "bimanual":
+    #         options["robots"] = "Baxter"
+    #     else:
+    #         options["robots"] = []
 
-            # Have user choose two robots
-            print("A multiple single-arm configuration was chosen.\n")
+    #         # Have user choose two robots
+    #         print("A multiple single-arm configuration was chosen.\n")
 
-            for i in range(2):
-                print("Please choose Robot {}...\n".format(i))
-                options["robots"].append(choose_robots(exclude_bimanual=True))
-    # If a humanoid environment has been chosen, choose humanoid robots
-    elif "Humanoid" in options["env_name"]:
-        options["robots"] = choose_robots(use_humanoids=True)
-    # Else, we simply choose a single (single-armed) robot to instantiate in the environment
-    else:
-        options["robots"] = choose_robots(exclude_bimanual=True)
-
+    #         for i in range(2):
+    #             print("Please choose Robot {}...\n".format(i))
+    #             options["robots"].append(choose_robots(exclude_bimanual=True))
+    # # If a humanoid environment has been chosen, choose humanoid robots
+    # elif "Humanoid" in options["env_name"]:
+    #     options["robots"] = choose_robots(use_humanoids=True)
+    # # Else, we simply choose a single (single-armed) robot to instantiate in the environment
+    # else:
+    #     options["robots"] = choose_robots(exclude_bimanual=True)
     # initialize the task
+    options["env_name"] = "Door"
+    options["robots"] = "Panda"
     env = suite.make(
         **options,
         has_renderer=True,
@@ -65,7 +66,7 @@ if __name__ == "__main__":
     low, high = env.action_spec
 
     # do visualization
-    for i in range(100):
+    for i in range(1000):
         action = np.random.uniform(low, high)
         obs, reward, done, _ = env.step(action)
         env.render()

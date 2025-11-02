@@ -12,9 +12,9 @@ cfg = OmegaConf.load("configs/pick_maniwhere.yaml")
 app = FastAPI()
 obs_shape = (128,128,3)
 action_shape = (7,)
-agent = make_policy_agent(cfg, cfg.agent_name, cfg.device, obs_shape, action_shape, is_train=True)
-image_process_fn = make_imageprocess_fn(cfg, cfg.agent_name, obs_shape)
-@app.post("/vla")
+agent = make_policy_agent(cfg, cfg.agent_name, cfg.device, action_shape, is_train=False)
+image_process_fn = make_imageprocess_fn(cfg)
+@app.post("/policy")
 async def agent(
     image_file: UploadFile = File(...), 
     label: str = Form(...),
@@ -31,4 +31,4 @@ async def agent(
 
 if __name__=='__main__':
     import uvicorn
-    uvicorn.run(app="image_server:app", host="0.0.0.0", port=8000, reload=False)
+    uvicorn.run(app=app, host="0.0.0.0", port=8000, reload=False)

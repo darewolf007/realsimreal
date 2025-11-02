@@ -13,6 +13,7 @@ schedule_random: false
 subtask_max_step: 150
 
 # agent base setting
+mode: "train" # train, eval, replay
 agent_name: "LaNE"
 device: "cuda"
 train_camera_name: "sceneview" # choose camera for training

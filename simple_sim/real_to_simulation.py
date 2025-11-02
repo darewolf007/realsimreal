@@ -16,6 +16,7 @@ from simple_sim.sim_utils.sim_util import quaternion_to_matrixT, adjust_orientat
 from simple_sim.sim_utils.sim_util import euler_to_quaternion, quaternion_to_euler
 from simple_sim.sim_utils.motion_planning import MotionPlanning
 from simple_sim.sim_utils.camera_util import get_real_depth_map
+from simple_sim.sim_utils.domain_randomization_wrapper import DomainRandomizationWrapper
 
 class RealInSimulation:
     def __init__(self, robot, env_info, has_renderer, *args, **kwargs):
@@ -35,6 +36,8 @@ class RealInSimulation:
         self.init_scene_camera_pose()
         self.init_motion_planning()
         self.env = SimpleEnv(robot, env_info, has_renderer = has_renderer, *args, **kwargs)
+        if False:
+            self.env = DomainRandomizationWrapper(self.env)
         self.init_invese_kinematics()
         self.init_action_space()
         # reset the environmet to add moveview not use
@@ -214,6 +217,15 @@ class RealInSimulation:
         # print("gripper2", self.env.sim.data.get_site_xpos('gripper0_right_grip_site_cylinder'))
         # print("can", self.env.sim.data.get_site_xpos('can_up_site'))
 
+    def get_state_observation(self, actions = None):
+        state_observations = {}
+        state_observations['robot0_joint_observation'] = self.env.robots[0]._joint_positions
+        if actions is not None:
+            state_observations['robot0_gripper_observation'] = np.array([actions[-1]])
+        else:
+            state_observations['robot0_gripper_observation'] = np.array([0])
+        return state_observations
+
     def _step(self, action, use_joint_controller=False):
         if use_joint_controller:
             observations, reward, done, info = self.env.step(action)
@@ -236,6 +248,8 @@ class RealInSimulation:
         info['subtask_id'] = subtask_id
         target_obj = self.env_info['subtask_object_info'][self.sub_task_idx][1]
         observations = self.pre_process_obs_image(observations, target_obj, self.all_task_step_num, is_collect = is_collect, is_crop = self.env_info['is_crop'])
+        state_observations = self.get_state_observation(step_action)    
+        observations.update(state_observations)
         self.last_observation = observations
         self.update_info(info)
         # print("info:", info)
@@ -466,6 +480,8 @@ class RealInSimulation:
         observations, reward, done, info = self._step(action, True)
         target_obj = self.env_info['subtask_object_info'][self.sub_task_idx][1]
         new_observation = self.pre_process_obs_image(observations, target_obj, 0, is_collect = False, is_crop = self.env_info['is_crop'])
+        state_observations = self.get_state_observation()
+        new_observation.update(state_observations)   
         # self.last_observation = new_observation
         return new_observation
 

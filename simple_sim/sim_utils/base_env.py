@@ -241,7 +241,7 @@ class SimpleEnv(ManipulationEnv):
         self.env_info = new_env_info
 
     def robot_collisions(self):
-        if self.check_contact(self.robots[0].robot_model):
+        if self.check_contact(self.robots[0].robot_model, "ur_table"):
             return True
         elif self.robots[0].check_q_limits():
             # this is too sensitive, so we just return False
