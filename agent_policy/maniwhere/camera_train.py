@@ -15,10 +15,10 @@ import hydra
 import numpy as np
 import torch
 from dm_env import specs
-from . import utils as maniwhere_utils
-from .logger import Logger
-from .replay_buffer import ReplayBufferStorage, make_replay_loader
-from .video import TrainVideoRecorder, VideoRecorder
+from agent_policy.maniwhere import utils as maniwhere_utils
+from agent_policy.maniwhere.logger import Logger
+from agent_policy.maniwhere.replay_buffer import ReplayBufferStorage, make_replay_loader
+from agent_policy.maniwhere.video import TrainVideoRecorder, VideoRecorder
 import wandb
 import time
 import gc
@@ -27,8 +27,8 @@ import imageio
 from collections import deque
 
 torch.backends.cudnn.benchmark = True
-from .algos.maniwhere import ManiAgent
-from .utils import CameraViewWrapper
+from agent_policy.maniwhere.algos.maniwhere import ManiAgent
+from agent_policy.maniwhere.utils import CameraViewWrapper
 
 
 def make_agent(obs_shape, action_shape, cfg):
@@ -37,6 +37,12 @@ def make_agent(obs_shape, action_shape, cfg):
                  hidden_dim = cfg.hidden_dim, critic_target_tau = cfg.critic_target_tau, num_expl_steps = cfg.num_expl_steps,
                  update_every_steps = cfg.update_every_steps, stddev_schedule = 'linear(1.0,0.1,600000)', stddev_clip = cfg.stddev_clip, use_tb = False, use_wandb = False,
                  temp = cfg.temp, aux_coef = cfg.aux_coef, aux_l2_coef = cfg.aux_l2_coef, aux_tcc_coef = cfg.aux_tcc_coef, aux_latency = cfg.aux_latency, lr_stn = cfg.lr_stn)
+
+def load_agent(args):
+    import sys
+    sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+    agent = torch.load(args.agent["model_dir"], map_location='cuda:0')
+    return agent['agent']
 
 class Workspace:
     def __init__(self, cfg, train_env, test_env, obs_shape, action_shape):
@@ -281,8 +287,11 @@ class Workspace:
         for k, v in payload.items():
             self.__dict__[k] = v
 
-def maniwhere_train_main(agent, args, obs_shape, action_shape, env, test_env, post_process_fn=None, reward_fn=None, action_pre_process_fn=None):
-    root_dir = Path.cwd()
+def maniwhere_train_main(agent, args, obs_shape, action_shape, env, test_env, post_process_fn=None, reward_fn=None, action_pre_process_fn=None, root_dir=None):
+    if root_dir is None:
+        root_dir = Path.cwd()
+    else:
+        root_dir = Path(root_dir)
     workspace = Workspace(args, env, test_env, obs_shape, action_shape)
     snapshot = root_dir / 'snapshot.pt'
     if snapshot.exists():

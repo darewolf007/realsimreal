@@ -1,6 +1,6 @@
 # task base setting
 task_name: "Pick up banana"
-dataset_name: "pick up banana"
+dataset_name: "Pick up banana"
 env_name: "PickBanana"
 subtask_language_info: ["Pick up banana"]  # get form task discription (LLM)
 subtask_object_info: [["gripper", "banana"]] # object discription, first is the moving object, second is the target object

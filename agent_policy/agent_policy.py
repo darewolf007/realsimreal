@@ -7,7 +7,7 @@ from agent_policy.BC_SAC.bc_sac_policy import BCSACPolicy
 from agent_policy.mine.sac import MineSacAgent
 from agent_policy.mine.train import mine_train_main
 from agent_policy.maniwhere.camera_train import maniwhere_train_main
-from agent_policy.maniwhere.camera_train import make_agent
+from agent_policy.maniwhere.camera_train import make_agent, load_agent
 
 class eval_mode(object):
     def __init__(self, *models):
@@ -139,10 +139,10 @@ class BaseAgentPolicy:
             print("Training agent")
         else:
             print("Loading agent")
-            raise NotImplementedError
+            agent = load_agent(args)
         return agent
 
-    def get_action(self, obs):
+    def get_action(self, obs, step = 0):
         if self.agent_name == "LaNE":
             obs = center_crop(obs, self.args.image_size)
             with eval_mode(self.agent):
@@ -154,6 +154,10 @@ class BaseAgentPolicy:
             obs = center_crop(obs, self.args.image_size)
             with eval_mode(self.agent):
                 action = self.agent.select_action(obs)
+            return action
+        elif self.agent_name == "maniwhere":
+            with torch.no_grad(), eval_mode(self.agent):
+                action = self.agent.act(obs, step, eval_mode=True)
             return action
         else:
             raise NotImplementedError

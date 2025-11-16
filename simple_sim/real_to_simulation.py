@@ -220,10 +220,16 @@ class RealInSimulation:
     def get_state_observation(self, actions = None):
         state_observations = {}
         state_observations['robot0_joint_observation'] = self.env.robots[0]._joint_positions
+        current_end_xpos = self.env.sim.data.get_site_xpos('robot0_attachment_site').copy()
+        current_end_xquat = self.env.sim.data.get_site_xmat('robot0_attachment_site').copy()
+        current_end_xquat = R.from_matrix(current_end_xquat).as_quat()
+        current_end_xquat = current_end_xquat[[3, 0, 1, 2]]
         if actions is not None:
             state_observations['robot0_gripper_observation'] = np.array([actions[-1]])
         else:
             state_observations['robot0_gripper_observation'] = np.array([0])
+        end_effector_state = np.concatenate([current_end_xpos, current_end_xquat, state_observations['robot0_gripper_observation']])
+        state_observations['robot0_eff_observation'] = end_effector_state
         return state_observations
 
     def _step(self, action, use_joint_controller=False):
@@ -477,12 +483,14 @@ class RealInSimulation:
         init_pose = np.array(self.env.init_qpos)
         action = np.concatenate([init_pose, np.array([-1])])
         self._step(action, True)
+        self._step(action, True)
+        self._step(action, True)
         observations, reward, done, info = self._step(action, True)
         target_obj = self.env_info['subtask_object_info'][self.sub_task_idx][1]
         new_observation = self.pre_process_obs_image(observations, target_obj, 0, is_collect = False, is_crop = self.env_info['is_crop'])
         state_observations = self.get_state_observation()
         new_observation.update(state_observations)   
-        # self.last_observation = new_observation
+        self.last_observation = new_observation
         return new_observation
 
     def is_in_subtask(self, threshold=0.11):

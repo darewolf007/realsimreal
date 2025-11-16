@@ -9,11 +9,12 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.transforms as T
 from torchvision.models import resnet
-from.. import utils as maniwhere_utils
+from agent_policy.maniwhere import utils as maniwhere_utils
+# from.. import utils as maniwhere_utils
 import random
 from collections import deque
-from .stn import TransformNet_STN_PerImage, TransformNet_STN1, PerspectiveSTNPerImage, PerspectiveSTN
-from ..utils import random_overlay, random_mask_freq_v2 
+from agent_policy.maniwhere.algos.stn import TransformNet_STN_PerImage, TransformNet_STN1, PerspectiveSTNPerImage, PerspectiveSTN
+from agent_policy.maniwhere.utils import random_overlay, random_mask_freq_v2
 
 class RandomShiftsAug(nn.Module):
     def __init__(self, pad):

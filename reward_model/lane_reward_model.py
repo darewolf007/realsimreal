@@ -64,11 +64,16 @@ class DINOE2CSacAgent:
             self.dino = torch.hub.load(self.dino_model_dir, "dinov2_vits14_reg", source='local', trust_repo=True, pretrained=False).to(self.device)
             self.dino.load_state_dict(torch.load(self.dino_model_dir + '/dinov2_vits14_reg4_pretrain.pth'))
             self.dino.eval()
+            for param in self.dino.parameters():
+                param.requires_grad = False
             # self.dino = torch.hub.load(
             #     "facebookresearch/dinov2", "dinov2_vits14_reg"
             # ).to(self.device)
             self.e2c.load_state_dict(
             torch.load(self.model_dir, map_location=self.device))
+            self.e2c.eval()
+            for param in self.e2c.parameters():
+                param.requires_grad = False
             one_step_dist_list = []
             for i in range(len(self.replay_buffer.demo_starts)):
                 i_start = self.replay_buffer.demo_starts[i]

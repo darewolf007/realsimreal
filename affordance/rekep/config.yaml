@@ -4,7 +4,7 @@ device: &device 'cuda'
 seed: &seed 0
 
 constraint_generator:
-  model: chatgpt-4o-latest
+  model: Qwen3VL-8B
   temperature: 0.0
   max_tokens: 2048
 

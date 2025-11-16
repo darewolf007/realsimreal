@@ -1,19 +1,19 @@
 # task base setting
-task_name: "Pick up banana"
-dataset_name: "pick up banana"
-env_name: "PickBanana"
-subtask_language_info: ["Pick up banana"]  # get form task discription (LLM)
-subtask_object_info: [["gripper", "banana"]] # object discription, first is the moving object, second is the target object
+task_name: "Pour can into a cup"
+dataset_name: "pour can"
+env_name: "PourCan"
+subtask_language_info: ["Pick up the can", "Pour the can into the cup"]  # get form task discription (LLM)
+subtask_object_info: [["gripper", "can"], ["can", "cup"]] # object discription, first is the moving object, second is the target object
 obj_info:
-  labels: ["banana"] # object label, get from task discription (LLM)
-  poses: [[-0.29156371, 0.37589715, 0.04, 0.707, 0, 0, 0.707]] # object 6-Dof pose, get from pose estimation
-  grasp_obj: [true] # object proptery, graspable or static, get from task discription (LLM)
-robot_init_qpos: [-1.01362259, -1.74503436, 1.85383064, -1.64450421, -1.57473976, -0.25406391]
-schedule_random: true
-subtask_max_step: 50
+  labels: ["can", "cup"] # object label, get from task discription (LLM)
+  poses: [[-0.2562991631336547, 0.4926287676792574, 0.04, 0.707, 0, 0, 0.707], [-0.3752402510664353, 0.18816868097445758, 0.025, 1, 0, 0, 0]] # object 6-Dof pose, get from pose estimation
+  grasp_obj: [True, False] # object proptery, graspable or static, get from task discription (LLM)
+robot_init_qpos: [-1.0340879599200647, -1.7024780712523402, 1.846832577382223, -1.6348215542235316, -1.661332909260885, -0.16685849825014287]
+schedule_random: false
+subtask_max_step: 150
 
 # agent base setting
-mode: "eval" # train, eval, replay
+mode: "replay" # train, eval, replay
 agent_name: "vla-adapter" # pi0, vla-adapter
 device: "cuda"
 train_camera_name: ??  # choose camera for training

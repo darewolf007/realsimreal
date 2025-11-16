@@ -104,8 +104,8 @@ if __name__ == "__main__":
     keypoints, projected_img = keypoint_proposer.get_keypoints(scaled_rgb_image, points, scaled_mask_image)
     # points = depth_map_to_point_cloud(depth_image, camera_intrinsics)
     # keypoints, projected_img = keypoint_proposer.get_keypoints(rgb_image, points, mask_image)
-    show_img(projected_img)
-    instruction = 'reorient the white pen and drop it upright into the black pen holder'
-    # metadata = {'init_keypoint_positions': keypoints, 'num_keypoints': len(keypoints)}
-    # constraint_generator = ConstraintGenerator(global_config['constraint_generator'])
-    # rekep_program_dir = constraint_generator.generate(projected_img, instruction, metadata)
+    # show_img(projected_img)
+    instruction = 'Lift the can'
+    metadata = {'init_keypoint_positions': keypoints, 'num_keypoints': len(keypoints)}
+    constraint_generator = ConstraintGenerator(global_config['constraint_generator'])
+    rekep_program_dir = constraint_generator.generate(projected_img, instruction, metadata)

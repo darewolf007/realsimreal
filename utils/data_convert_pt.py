@@ -30,8 +30,9 @@ def convert_pickles_to_pt(data_dir, output_path, crop):
                 file_path = os.path.join(traj_path, file)
                 with open(file_path, "rb") as f:
                     data = pickle.load(f)
-                    all_obses.append(np.transpose(resize_image(data['obses'], crop), (2, 0, 1)))
-                    all_next_obses.append(np.transpose(resize_image(data['next_obses'], crop), (2, 0, 1)))
+                    # if use muti view need to change here
+                    all_obses.append(np.transpose(resize_image(data['obses'][:,:,:3], crop), (2, 0, 1)))
+                    all_next_obses.append(np.transpose(resize_image(data['next_obses'][:,:,:3], crop), (2, 0, 1)))
                     # data['actions'][3:-1] = np.radians(data['actions'][3:-1])
                     # data['actions'][3:-1] = np.array([0,0,0])
                     all_actions.append(data['actions'])
@@ -57,8 +58,6 @@ def convert_pickles_to_pt(data_dir, output_path, crop):
     all_actions = torch.tensor(all_actions)
     all_rewards = torch.tensor(all_rewards)
     all_not_dones = torch.tensor(all_not_dones)
-    print("angle", all_actions[:, 3:-1].max())
-    print("action", all_actions[:, :3].max())
     pt_file_name = str(start) + "_" + str(end) +".pt"
     torch.save((all_obses, all_next_obses, all_actions, all_rewards, all_not_dones), output_path + pt_file_name)
     np.save(os.path.join(output_path, "demo_ends.npy"), demo_ends)
@@ -170,14 +169,37 @@ def check_data_quality(data_dir, crop):
     #     plt.grid()
     # plt.show()
 
-if __name__ == "__main__":
-    data_name = "multi_pickplace"
+def convert_pt_data(task_name, data_name, base_dir, is_real=False):
     if "crop" in data_name:
         crop = 1/6
     else:
         crop = 1/12
-    data_dir = "/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/multi/" + data_name
-    output_path = "/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/pt_data/" 
+    data_dir = base_dir + "/data/sim_data/" + task_name
+    output_path = base_dir + "/data/sim_data/" + "/pt_data/"
+    # convert real data for finetuning
+    if is_real:
+        real_data_dir = "/home/haowen/hw_mine/Real_Sim_Real/data/real_data/easy_task/pick_banana"
+        real_pt_output_path = "/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/real_data/pick up banana"
+        if os.path.exists(real_pt_output_path):
+            shutil.rmtree(real_pt_output_path)
+        os.mkdir(real_pt_output_path)
+        convert_real_to_pt(real_data_dir, real_pt_output_path + "/", crop)
+    # convert sim data for policy training
+    else:
+        check_data_quality(data_dir, crop)
+        pt_output_path = output_path + data_name.replace("_", " ")
+        if os.path.exists(pt_output_path):
+            shutil.rmtree(pt_output_path)
+        os.mkdir(pt_output_path)
+        convert_pickles_to_pt(data_dir, pt_output_path + "/", crop)
+if __name__ == "__main__":
+    data_name = "pick_up_banana"
+    if "crop" in data_name:
+        crop = 1/6
+    else:
+        crop = 1/12
+    data_dir = "/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/" + data_name
+    output_path = "/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/pt_data/"
     # convert real data for finetuning
     # real_data_dir = "/home/haowen/hw_mine/Real_Sim_Real/data/real_data/easy_task/pick_banana"
     # real_pt_output_path = "/home/haowen/hw_mine/Real_Sim_Real/data/sim_data/real_data/pick up banana"
@@ -187,7 +209,7 @@ if __name__ == "__main__":
     # convert_real_to_pt(real_data_dir, real_pt_output_path + "/", crop)
     # convert sim data for policy training
     check_data_quality(data_dir, crop)
-    pt_output_path = output_path + data_name
+    pt_output_path = output_path + data_name.replace("_", " ")
     if os.path.exists(pt_output_path):
         shutil.rmtree(pt_output_path)
     os.mkdir(pt_output_path)

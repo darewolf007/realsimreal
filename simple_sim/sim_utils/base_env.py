@@ -205,8 +205,8 @@ class SimpleEnv(ManipulationEnv):
             # )
             super()._reset_internal()
             # TODO: rewrite move camera base on fix scene view
-            self.sim.data.set_mocap_pos(self.mover_camera_name, view_info["pos"]  + self.schedule_scale * (np.random.uniform(low=-0.03, high=0.03, size=view_info["pos"].shape)))
-            self.sim.data.set_mocap_quat(self.mover_camera_name, view_info["quat"]  + self.schedule_scale * (np.random.uniform(low=-0.01, high=0.01, size=view_info["quat"].shape)))
+            self.sim.data.set_mocap_pos(self.mover_camera_name, view_info["pos"]  + self.schedule_scale * (np.random.uniform(low=-0.003, high=0.003, size=view_info["pos"].shape)))
+            self.sim.data.set_mocap_quat(self.mover_camera_name, view_info["quat"]  + self.schedule_scale * (np.random.uniform(low=-0.001, high=0.001, size=view_info["quat"].shape)))
             for obj in self.scene_objects:
                 idx = self.env_info['obj_info']['labels'].index(obj.name)
                 obj_position = np.array(self.env_info['obj_info']['poses'][idx][:3].copy())
@@ -250,7 +250,7 @@ class SimpleEnv(ManipulationEnv):
             return False
         
     def get_schedule_scale(self):
-        scale = 1.0 - np.exp(-0.001 * self.reset_time)
+        scale = 1.0 - np.exp(-0.0001 * self.reset_time)
         return np.clip(scale, 0.0, 1.0)
 
     def modify_xml_for_camera_movement(self, tree, camera_name):

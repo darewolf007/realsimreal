@@ -35,6 +35,7 @@ use_depth: false
 hint: none
 num_train_frames: 801000
 agent:
+  model_dir: null
   cameras: [0]
   train_camera_name: ["sceneview", "moveview"] # choose camera for training
   frame_stack: ${frame_stack}

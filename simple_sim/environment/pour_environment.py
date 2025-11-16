@@ -47,38 +47,39 @@ class PourCanSimulation(SingleViewSimulation):
     def compute_dense_reward(self):
         tcp_pose = self.env.sim.data.get_site_xpos('gripper0_right_grip_site').copy()
         moving_object_pose = self.env.sim.data.get_site_xpos(self.moving_object + "_center_site").copy()
-        target_pose = self.env.sim.data.get_site_xpos(self.target_object + "_center_site").copy() 
+        oir_target_pose = self.env.sim.data.get_site_xpos(self.target_object + "_center_site").copy()
+        target_pose = oir_target_pose + np.array([0, 0, 0.07])
         end_to_obj = np.linalg.norm(tcp_pose - moving_object_pose)
         is_contact = end_to_obj < 0.065
         all_contact = self.is_grasping(self.moving_object)
         reward = -0.1 * end_to_obj
         dump_vector_xy = target_pose[:2] - moving_object_pose[:2]
-        sign_x = -1 if dump_vector_xy[0] < -1e-6 else 1
-        sign_y = -1 if dump_vector_xy[1] < -1e-6 else 1
+        sign_x = 1 if dump_vector_xy[0] < -1e-6 else -1
+        sign_y = 1 if dump_vector_xy[1] < -1e-6 else -1
+        print("init", self.init_robot_joint, self.init_robot_eff, self.obj_init_pose)
         if is_contact:
             reward += 0.1
             if all_contact:
                 reward += 0.2
-            lift = np.linalg.norm(self.target_pose - moving_object_pose)
-            is_obj_lifted = (lift<= self.lift_threshold)
-            reward += 50 * is_obj_lifted
-            condition = lift > 0.06
-            if condition:  # if object off the table
+            lift = np.linalg.norm(self.obj_init_pose[self.moving_object][2] - moving_object_pose[2])
+            reward += 50 * lift
+            condition = lift > 0.03
+            if condition and all_contact:  # if object off the table
                 obj_target_distance = np.linalg.norm(moving_object_pose - target_pose)
                 reward += 2.0  # bonus for lifting the object
                 reward += -0.5 * np.linalg.norm(tcp_pose - target_pose)  # make hand go to target
                 reward += -1.5 * obj_target_distance  # make object go to target
-                if obj_target_distance < 0.05:
+                print("reward", reward)
+                if obj_target_distance < 0.09:
                     reward += 1 / (max(obj_target_distance, 0.03))
-                    if obj_target_distance < 0.05:
-                        obj_quat = self.env.sim.data.get_body_xquat(self.moving_object+"_main").copy()
-                        z_axis = transforms3d.quaternions.quat2mat(obj_quat) @ np.array([0, 0, 1])
-                        reward += -(sign_x * z_axis[0] + sign_y * z_axis[1]) * 20 - abs(z_axis[0] - z_axis[1]) * 10
-                        if (sign_x * z_axis[0] < 0) and (sign_y * z_axis[1] < 0):
-                            reward += np.arccos(z_axis[2]) * 100
+                    obj_quat = self.env.sim.data.get_body_xquat(self.moving_object+"_main").copy()
+                    z_axis = transforms3d.quaternions.quat2mat(obj_quat) @ np.array([0, 0, 1])
+                    reward += -(sign_x * z_axis[0] + sign_y * z_axis[1]) * 20 - abs(z_axis[0] - z_axis[1]) * 10
+                    if (sign_x * z_axis[0] < 0) and (sign_y * z_axis[1] < 0):
+                        reward += np.arccos(z_axis[2]) * 100
         if self.robot_collisions:
             reward -= 0.05 * abs(reward)
-        max_reward = 0.3 + 50 + 2.0 + 1 / 0.03 + 20 * 1.4142 + 100 + 100
+        max_reward = 0.3 + 50 * target_pose[2] + 2.0 + 1 / 0.03 + 20 * 1.4142 + 100
         reward /= max_reward
         return reward
     
@@ -118,15 +119,15 @@ class PourCanSimulation(SingleViewSimulation):
         target_pose = self.env.sim.data.get_site_xpos(self.target_object + "_center_site").copy() 
         all_contact = self.is_grasping(self.moving_object)
         dump_vector_xy = target_pose[:2] - moving_object_pose[:2]
-        sign_x = -1 if dump_vector_xy[0] < -1e-6 else 1
-        sign_y = -1 if dump_vector_xy[1] < -1e-6 else 1
+        sign_x = 1 if dump_vector_xy[0] < -1e-6 else -1
+        sign_y = 1 if dump_vector_xy[1] < -1e-6 else -1
         obj_target_distance = np.linalg.norm(moving_object_pose - target_pose)
         if all_contact and obj_target_distance < 0.05:
             obj_quat = self.env.sim.data.get_body_xquat(self.moving_object+"_main").copy()
             z_axis = transforms3d.quaternions.quat2mat(obj_quat) @ np.array([0, 0, 1])
             if (sign_x * z_axis[0] < 0) and (sign_y * z_axis[1] < 0):
-                reward += np.arccos(z_axis[2]) * 100
-                if reward > 157 and not self.pour_reward_given:
+                reward = np.arccos(z_axis[2]) * 100
+                if reward > 108 and not self.pour_reward_given:
                     self.pour_reward_given = True
                     return True
         else:
