@@ -4,7 +4,7 @@ import numpy as np
 from reward_model.utils.image_util import resize_image, save_image_pkl
 from reward_model.action_feasibility_model import RGBDViewReward
 from reward_model.offline_reward_model import MultiViewReward
-from reward_model.online_reward_model import ask_subtask
+from reward_model.vlm_reward_model import VLMClient
 
 class RewardModel:
     def __init__(self, cfg, base_path):
@@ -79,11 +79,12 @@ class RewardModel:
             "sceneview_rgb": observations["sceneview_image"],
         }
         if self.subtask_pre_flag == False:
-            given_reward = ask_subtask(image_dict, 
-                                       self.subtask_object_info[self.subtask_idx][0], 
-                                       self.subtask_object_info[self.subtask_idx][1], 
+            given_reward = self.vlm_client.ask_human_provided_projection_relationships(
+                                       image_dict,
                                        self.subtask_language_info[self.subtask_idx],
-                                       self.subtask_pre_flag)
+                                       self.subtask_object_info[self.subtask_idx][0], 
+                                       self.subtask_object_info[self.subtask_idx][1],
+                                       )
             if given_reward:
                 reward == -1
             else:
@@ -91,11 +92,12 @@ class RewardModel:
                 self.subtask_pre_flag = True
                 self.sum_reward += reward
         else:
-            given_reward = ask_subtask(image_dict, 
-                            self.subtask_object_info[self.subtask_idx][0], 
-                            self.subtask_object_info[self.subtask_idx][1], 
-                            self.subtask_language_info[self.subtask_idx],
-                            self.subtask_pre_flag)
+            given_reward = self.vlm_client.ask_human_provided_projection_relationships(
+                                       image_dict,
+                                       self.subtask_language_info[self.subtask_idx],
+                                       self.subtask_object_info[self.subtask_idx][0],
+                                       self.subtask_object_info[self.subtask_idx][1],
+                                       )
             if given_reward:
                 reward == -1
             else:
@@ -221,5 +223,7 @@ class RewardModel:
         return reward, done, reward_info
 
     def __call__(self, observations, action, info, reward = -1, reward_type="test", is_save=False, is_train=True):
+        if reward_type=="online":
+            self.vlm_client = VLMClient()
         reward_fn = self.reward_fn_map[reward_type]
         return reward_fn(observations, action, info, reward, is_save, is_train)
