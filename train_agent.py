@@ -25,6 +25,8 @@ ENV_DICT = {
     "PressButton": PressButtonSimulation,}
 
 def make_reward_fn(cfg, action_shape = None):
+    if cfg.env_info.reward_type == "dense":
+        return None
     base_path = os.path.dirname(os.path.abspath(__file__))
     if cfg.agent_name == "LaNE" or cfg.agent_name == "mine":
         return RewardModel(cfg, base_path=os.path.dirname(os.path.abspath(__file__)))
@@ -251,9 +253,10 @@ def eval_agent_in_env(cfg):
 # @hydra.main(config_path='configs/pickplace_lane.yaml', strict=True)
 # @hydra.main(config_path='configs/pickplace_mine.yaml', strict=True)
 # @hydra.main(config_path='configs/pickplace_maniwhere.yaml', strict=True)
-@hydra.main(config_path='configs/pick_maniwhere.yaml', strict=True)
+# @hydra.main(config_path='configs/pick_maniwhere.yaml', strict=True)
 # @hydra.main(config_path='configs/pick_vla.yaml', strict=True)
 # @hydra.main(config_path='configs/pour_vla.yaml', strict=True)
+@hydra.main(config_path='configs/lift_maniwhere.yaml', strict=True)
 def main_policy(cfg):
     # convert_pt_data(cfg.task_name.replace(" ", "_"), cfg.dataset_name, os.path.dirname(os.path.abspath(__file__)))
     if cfg.mode == "eval":

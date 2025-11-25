@@ -70,7 +70,7 @@ class RealInSimulation:
 
     def init_scene_camera_pose(self):
         self.env_info['camera_info'] = {}
-        self.env_info['camera_info']['sceneview'] = {"pos": [0, 0, 0], "quat": [1, 0, 0, 0]}
+        self.env_info['camera_info']['sceneview'] = {"pos": [0, 0, 0], "quat": [1, 0, 0, 0]}#xyzw
         if self.env_info['base_choose'] == "camera":
             for view_name, view_info in self.env_info['camera_info'].items():
                 xyzw_quaternion = np.array(view_info["quat"])
@@ -637,7 +637,7 @@ if __name__ == "__main__":
     env_info['task_name'] = task_name
     env_info['subtask_language_info'] = [subtask_1, subtask_2]
     env_info['subtask_object_info'] = [subtask_1_obj, subtask_2_obj]
-
+    env_info['base_env_xml'] = "external_area.xml"
 
     #### pick up banana
     # task_name = "Pick up banana"
@@ -814,7 +814,7 @@ if __name__ == "__main__":
                                  camera_heights=env_info['camera_heights'],
                                  camera_widths=env_info['camera_widths'],
                                  camera_names=env_info['camera_names'],
-                                 schedule_random = True)
+                                 schedule_random = False)
     test_real.reset()
     # resettime = 0
     # while(True):

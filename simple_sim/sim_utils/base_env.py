@@ -128,7 +128,7 @@ class SimpleEnv(ManipulationEnv):
         self.robots[0].robot_model._elements["root_body"].set("quat", array_to_string(robot_quat))
         self.robots[0].init_qpos = self.init_qpos
         base_path = os.path.dirname(os.path.realpath(__file__))
-        obj_xml = os.path.join(base_path, "../asset/external_area.xml")
+        obj_xml = os.path.join(base_path, "../asset/"+self.env_info['base_env_xml'])
         mujoco_arena = ExternalArea(xml_path_completion(obj_xml))
         self.mujoco_arena = mujoco_arena
         for view_name, view_info in self.env_info['camera_info'].items():

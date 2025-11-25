@@ -1,0 +1,46 @@
+# task base setting
+task_name: "Pick up banana"
+dataset_name: "pick up banana"
+env_name: "PickBanana"
+subtask_language_info: ["Pick up banana"]  # get form task discription (LLM)
+subtask_object_info: [["gripper", "banana"]] # object discription, first is the moving object, second is the target object
+obj_info:
+  labels: ["banana"] # object label, get from task discription (LLM)
+  poses: [[0.2156371, -0.4589715, 0.04, 1, 0, 0, 0]] # object 6-Dof pose, get from pose estimation
+  grasp_obj: [true] # object proptery, graspable or static, get from task discription (LLM)
+robot_init_qpos: [1.587693691253662, -1.7161880932249964, 1.7038443724261683, -1.5246179860881348, -1.5616052786456507, 0.002254486083984375]
+
+schedule_random: true
+subtask_max_step: 50
+
+# agent base setting
+mode: "train" # train, eval, replay
+agent_name: "maniwhere"
+device: "cuda"
+train_camera_name: "sceneview" # choose camera for training
+is_finetuning: false
+
+# dense reward model setting
+reward_camera_name: ["sceneview"] # choose camera for reward model
+replay_buffer_load_dir: ./data/sim_data/pt_data/${dataset_name} # reward model data
+reward_model_dir: ./results/reward_model/${dataset_name}/reward.pt # reward model path
+offline_dino_dir: ./pre_train/facebookresearch_dinov2_main # dino encoder model path
+
+
+# spare reward model setting
+reward_model_type: "test" # test, online, offline. test use the reward model in the environment
+reward_scale: 100
+use_pre_reward: false # use pre reward
+save_online_image: false # save online vlm image, save image for train reward model
+
+now: ${now:%Y-%m-%d}-${now:%H-%M-%S}
+save_dir: ./experiments/${task_name}/${dataset_name}-${env_name}-${agent_name}-${reward_model_type}-${now}
+# load all the default settings
+defaults:
+  - environment: new_base_env
+  - agent: maniwhere_policy
+
+hydra:
+    name: ${task_name}
+    run:
+        dir: ${save_dir}

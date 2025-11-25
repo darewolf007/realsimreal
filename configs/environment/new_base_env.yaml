@@ -4,13 +4,13 @@ env_info:
   subtask_language_info: ${subtask_language_info}
   subtask_object_info: ${subtask_object_info}
   robot_init_qpos: ${robot_init_qpos}
-  base_env_xml: external_area.xml
-# construct the task specific environment
+  base_env_xml: new_external_area.xml
+  # construct the task specific environment
   base_choose: "robot" # choose world base coordinate, robot or camera
   obj_pose_base: "robot" # init object pose base coordinate, robot or camera
   use_gravity: true
   has_renderer: false
-  hand_eye_path: ./configs/robot/ur5_kinect_handeyecalibration_eye_on_base.yaml
+  hand_eye_path: ./configs/robot/new_ur5_kinect_handeyecalibration_eye_on_base.yaml
   obj_info: ${obj_info}
 # simulation environment setting
   init_noise: true # add noise to init object pose
@@ -33,11 +33,11 @@ env_info:
   control_freq: 20
   max_action: 4
 # reward model setting
-  reward_type: "sparse" # dense, sparse, online_sparse
+  reward_type: "dense" # dense, sparse, online_sparse
   train_subtask: false # not use now
   add_additional_reward: false # for sd3g, not use now
   replay_data_save_path: ./data/sim_data/pt_data/  # for sd3g, not use now
-  
+
 # real_to_sim setting
   data_path: null # real world data path
   replay_buffer_load_dir: ./data/sim_data/pt_data/${dataset_name} # for replay and sd3g

@@ -35,7 +35,7 @@ class LiftBananaSimulation(SingleViewSimulation):
         self.gripper_change_num = -1 # pick will change gripper once
         self.lift_threshold = 0.05
         if self.env_info['reward_type'] == "dense":
-            self.sub_task_reward_scale = 1
+            self.sub_task_reward_scale = 0.25
         else:
             self.sub_task_reward_scale = 5
 
@@ -47,24 +47,18 @@ class LiftBananaSimulation(SingleViewSimulation):
         tcp_pose = self.env.sim.data.get_site_xpos('gripper0_right_grip_site').copy()
         moving_object_pose = self.env.sim.data.get_site_xpos(self.moving_object + "_center_site").copy()
         tcp_to_obj_dist = np.linalg.norm(moving_object_pose - tcp_pose)
-        reaching_reward = 1 - np.tanh(5 * tcp_to_obj_dist)
+        reaching_reward = 1 - np.tanh(10 * tcp_to_obj_dist)
         reward = reaching_reward
-        print("reaching_reward", reaching_reward)
         is_grasped = self.is_grasping(self.moving_object)
+        reward += self.is_pick_done_from_sim(is_grasped) * self.sub_task_reward_scale
         if is_grasped:
-            reward += self.is_pick_done_from_sim(is_grasped) * self.sub_task_reward_scale
-        print("is_grasped", is_grasped)
-        print("pick_reward_given", self.pick_reward_given)
-        obj_to_goal_dist = np.linalg.norm(self.target_pose - moving_object_pose)
-        lift_reward = 1 - np.tanh(5 * obj_to_goal_dist)
-        reward += lift_reward * is_grasped
-        print("lift_reward", lift_reward * is_grasped)
-        reward += self.is_lift_done_from_sim() * self.sub_task_reward_scale
-        print("lift_reward_given", self.lift_reward_given)
-        if self.is_sucess():
-            reward = 10 - min(self.gripper_change_num, 5) * self.sub_task_reward_scale
+            obj_to_goal_dist = np.linalg.norm(self.target_pose - moving_object_pose)
+            lift_reward = 1 - np.tanh(10 * obj_to_goal_dist)
+            reward += lift_reward * is_grasped
+        if self.is_lift_done_from_sim():
+            reward = 2.25
+        reward /= 2.25
         return reward
-    
     
     def reward(self):
         additional_reward = - self.robot_collisions * self.sub_task_reward_scale
@@ -81,7 +75,6 @@ class LiftBananaSimulation(SingleViewSimulation):
             reward =  -1
         else:
             raise NotImplementedError
-        print("additional_reward", additional_reward)
         return reward + additional_reward
     
     def is_sucess(self):

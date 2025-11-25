@@ -28,7 +28,6 @@ class PressButtonSimulation(SingleViewSimulation):
             reward =  -1
         else:
             raise NotImplementedError
-        print("additional_reward", additional_reward)
         return reward + additional_reward
 
     def is_sucess(self, info, action):

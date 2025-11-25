@@ -95,8 +95,12 @@ class SingleViewSimulation(RealInSimulation):
                 real_action = step_action
                 # real_action = action_pre_process_fn(step_action, xyz_mean, xyz_std)
                 obs, reward, done, info = self.step(real_action)
-                if reward_fn is not None:
-                    reward, done, reward_info = reward_fn(obs, real_action, info, reward, reward_type="replay", is_save=False, is_train=False)
+                #TODO rewrite reward fn( VLM+additional reward)
+                # if reward_fn is not None:
+                #     reward, done, reward_info = reward_fn(obs, real_action, info, reward, reward_type="replay", is_save=False, is_train=False)
+                # time_step = img_post_process_fn(obs, reward = reward, info = info, action = real_action, is_reset=False, is_train = False)
+                # additional_reward = 0.98 * (reward_fn.get_reward(time_step.observation[None,:3,...], torch.tensor(1)))
+                # self.reward_collect_list.append(reward+additional_reward.cpu().numpy()[0][0])
                 self.reward_collect_list.append(reward)
                 if show_img and img_post_process_fn is not None:
                     new_obs = img_post_process_fn(obs)
@@ -104,10 +108,7 @@ class SingleViewSimulation(RealInSimulation):
                     cv2.imshow("demo_obs", np.transpose(np.array(demo_obs[step]), (1, 2, 0))[:,:,::-1])
                     cv2.waitKey(1)
                     print(f"test_obs: {new_obs.shape} | test_action: {real_action} | test_reward: {reward} | test_done: {done} | test_reward_info: {reward_info}")
-                # for mine
-                # time_step = img_post_process_fn(obs, reward = reward, info = info, action = real_action, is_reset=False, is_train = False)
-                # additional_reward = 0.98 * (reward_fn.get_reward(time_step.observation[None,:3,...], torch.tensor(1)))
-                # self.reward_collect_list.append(reward+additional_reward.cpu().numpy()[0][0])
+
             print(f"Demo {i} finished.")
             save_path = os.path.dirname(os.path.abspath(__file__)) + "/../../experiments/reward_replay/" + self.env_info['reward_type'] + "/" + self.env_info['task_name'] + "/"
             os.makedirs(save_path, exist_ok=True)

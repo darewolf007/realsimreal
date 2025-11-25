@@ -131,7 +131,12 @@ class Workspace:
     def eval(self, post_process_fn = None, reward_fn = None, action_pre_process_fn = None):
         step, episode, total_reward = 0, 0, 0
         eval_until_episode = maniwhere_utils.Until(self.cfg.num_eval_episodes)
-
+        if reward_fn is not None:
+            action_mean = reward_fn.replay_buffer.xyz_mean
+            action_std = reward_fn.replay_buffer.xyz_std
+        else:
+            action_mean = 0
+            action_std = 1
         while eval_until_episode(episode):
             obs = self.eval_env.reset()
             time_step = post_process_fn(obs, reward = 0.0, info = {"truncation": False}, action = np.zeros(self.action_spec.shape), is_reset=True, is_train = False)
@@ -141,7 +146,7 @@ class Workspace:
                     action = self.agent.act(time_step.observation,
                                             self.global_step,
                                             eval_mode=True)
-                action = action_pre_process_fn(action, action_mean = reward_fn.replay_buffer.xyz_mean, action_std = reward_fn.replay_buffer.xyz_std)
+                action = action_pre_process_fn(action, action_mean = action_mean, action_std = action_std)
                 obs, reward, done, info = self.eval_env.step(action)
                 time_step = post_process_fn(obs, reward = reward, info = info, action = action, is_reset=False, is_train = False)
                 self.video_recorder.record(obs["sceneview_image"])
@@ -191,10 +196,16 @@ class Workspace:
         eval_every_step = maniwhere_utils.Every(self.cfg.eval_every_frames,
                                       self.cfg.action_repeat)
 
+        if reward_fn is not None:
+            action_mean = reward_fn.replay_buffer.xyz_mean
+            action_std = reward_fn.replay_buffer.xyz_std
+        else:
+            action_mean = 0
+            action_std = 1
         episode_step, episode_reward = 0, 0
         # episodic_list is used to store the observation of each episode
         episodic_list: List[np.ndarray] = []
-        self.load_demo(episodic_list, post_process_fn, reward_fn, action_pre_process_fn)
+        # self.load_demo(episodic_list, post_process_fn, reward_fn, action_pre_process_fn)
         obs = self.train_env.reset()
         time_step = post_process_fn(obs, reward = 0.0, info = {"truncation": False}, action = np.zeros(self.action_spec.shape), is_reset=True, is_train = True)
         episodic_list.append(time_step.observation[self._obs_channel:].copy())
@@ -259,7 +270,7 @@ class Workspace:
                 self.logger.log_metrics(metrics, self.global_frame, ty='train')
 
             # take env step
-            action = action_pre_process_fn(action, action_mean = reward_fn.replay_buffer.xyz_mean, action_std = reward_fn.replay_buffer.xyz_std)
+            action = action_pre_process_fn(action, action_mean = action_mean, action_std = action_std)
             obs, reward, done, info = self.train_env.step(action)
             time_step = post_process_fn(obs, reward = reward, info = info, action = action, is_reset=False, is_train = True)
             episodic_list.append(time_step.observation[self._obs_channel:].copy())
