@@ -8,6 +8,7 @@ from agent_policy.mine.sac import MineSacAgent
 from agent_policy.mine.train import mine_train_main
 from agent_policy.maniwhere.camera_train import maniwhere_train_main
 from agent_policy.maniwhere.camera_train import make_agent, load_agent
+from agent_policy.PPO.ppo_agent import PPOAgent, ppo_train_main
 
 class eval_mode(object):
     def __init__(self, *models):
@@ -40,9 +41,11 @@ class BaseAgentPolicy:
             self.agent = self.init_mine_agent(args)
         elif agent_name == "maniwhere":
             self.agent = self.init_maniwhere_agent(args)
+        elif agent_name == "ppo":
+            self.agent = self.init_ppo_agent(args)
         else:
             raise NotImplementedError
-    
+
     def init_BC_SAC_agent(self, args):
         bc_sac = BCSACPolicy(env = None, device = "cuda", params = args)
         agent = bc_sac.init_agent(bc_sac.choose_agent("rad_sac"), self.obs_shape, self.action_shape)
@@ -142,6 +145,9 @@ class BaseAgentPolicy:
             agent = load_agent(args)
         return agent
 
+    def init_ppo_agent(self, args):
+        return PPOAgent(self.action_shape, self.obs_shape)
+
     def get_action(self, obs, step = 0):
         if self.agent_name == "LaNE":
             obs = center_crop(obs, self.args.image_size)
@@ -159,6 +165,10 @@ class BaseAgentPolicy:
             with torch.no_grad(), eval_mode(self.agent):
                 action = self.agent.act(obs, step, eval_mode=True)
             return action
+        elif self.agent_name == "ppo":
+            with torch.no_grad(), eval_mode(self.agent):
+                action = self.agent.get_action(obs, deterministic=True)
+            return action
         else:
             raise NotImplementedError
 
@@ -174,5 +184,7 @@ class BaseAgentPolicy:
             mine_train_main(agent = self.agent, obs_shape = self.obs_shape, args = self.args, env = env, test_env = test_env, post_process_fn=img_post_process_fn, reward_fn=reward_fn, action_pre_process_fn=action_pre_process_fn)
         elif self.agent_name == "maniwhere":
             maniwhere_train_main(agent = self.agent, obs_shape = self.obs_shape, action_shape = self.action_shape, args = self.args, env = env, test_env = test_env, post_process_fn=img_post_process_fn, reward_fn=reward_fn, action_pre_process_fn=action_pre_process_fn)
+        elif self.agent_name == "ppo":
+            ppo_train_main(agent = self.agent, cfg = self.args, env = env, test_env = test_env, post_process_fn=img_post_process_fn, reward_fn=reward_fn, action_pre_process_fn=action_pre_process_fn)
         else:
             raise NotImplementedError

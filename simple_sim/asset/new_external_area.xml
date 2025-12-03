@@ -1,6 +1,6 @@
 <mujoco model="external_area">
     <asset>
-        <texture builtin="gradient" height="256" rgb1="0.1 0.1 0.1" rgb2="0.2 0.2 0.2" type="skybox" width="256"/>
+        <texture builtin="gradient" height="256" rgb1=".9 .9 1." rgb2=".2 .3 .4" type="skybox" width="256"/>
         <mesh name="table" file="./unknow/meshes/table.obj" scale = "1.0 1.0 1.0"/>
         <texture file="./unknow/textures/light-wood.png" type="2d" name="tex-light-wood"/>
         <material name="light-wood" reflectance="0" texrepeat="15 15" texture="tex-light-wood" texuniform="true"/>

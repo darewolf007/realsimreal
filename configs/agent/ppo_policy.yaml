@@ -1,0 +1,72 @@
+agent:
+  image_size: 128
+  train_camera_name: "sceneview"
+  save_path: null
+  # ==============================================================================
+  # 实验基础设置 (Experiment Settings)
+  # ==============================================================================
+  exp_name: null                  # 实验名称 (the name of this experiment)
+  seed: 1                         # 随机种子 (seed of the experiment)
+  torch_deterministic: true       # 是否使用确定性算法 (if toggled, `torch.backends.cudnn.deterministic=False`)
+  cuda: true                      # 是否启用 CUDA (if toggled, cuda will be enabled by default)
+  save_model: true                # 是否保存模型 (whether to save model into the `runs/{run_name}` folder)
+  checkpoint: null                # 预训练模型路径 (path to a pretrained checkpoint file to start evaluation/training from)
+  evaluate: false                 # 是否仅进行评估 (if toggled, only runs evaluation with the given model checkpoint)
+
+  # ==============================================================================
+  # 视频与渲染 (Video & Rendering)
+  # ==============================================================================
+  capture_video: true             # 是否录制视频 (whether to capture videos of the agent performances)
+  save_train_video_freq: null     # 训练视频保存频率 (frequency to save training videos in terms of iterations)
+  render_mode: "all"              # 渲染模式 (the environment rendering mode)
+
+  # ==============================================================================
+  # Weights and Biases (WandB) 追踪设置
+  # ==============================================================================
+  use_wandb: true                    # 是否开启 WandB 追踪 (if toggled, this experiment will be tracked with Weights and Biases)
+  wandb_project_name: "realsimereal" # WandB 项目名称 (the wandb's project name)
+  wandb_entity: null              # WandB 实体/团队名 (the entity (team) of wandb's project)
+  wandb_group: "PPO"              # WandB 分组名 (the group of the run for wandb)
+
+  # ==============================================================================
+  # 环境设置 (Environment Configuration)
+  # ==============================================================================
+  env_id: "PickCube-v1"           # 环境 ID (the id of the environment)
+  num_envs: 1                   # 并行训练环境数量 (the number of parallel environments)
+  num_eval_envs: 1                # 并行评估环境数量 (the number of parallel evaluation environments)
+  control_mode: "pd_joint_delta_pos" # 控制模式 (the control mode to use for the environment)
+  include_state: true             # 观测是否包含状态信息 (whether to include state information in observations)
+  partial_reset: true             # 训练环境是否部分重置 (whether to let parallel environments reset upon termination instead of truncation)
+  eval_partial_reset: false       # 评估环境是否部分重置 (whether to let parallel evaluation environments reset upon termination instead of truncation)
+  reconfiguration_freq: null      # 训练环境重构频率 (how often to reconfigure the environment during training)
+  eval_reconfiguration_freq: 1    # 评估环境重构频率 (reconfigure the eval environment each reset to ensure objects are randomized)
+
+  # ==============================================================================
+  # PPO 算法超参数 (Algorithm Hyperparameters)
+  # ==============================================================================
+  total_timesteps: 10000000       # 总时间步数 (total timesteps of the experiments)
+  learning_rate: 3.0e-4           # 学习率 (the learning rate of the optimizer)
+  num_steps: 2048                   # 每次 rollout 的步数 (the number of steps to run in each environment per policy rollout)
+  num_eval_steps: ${max_step}       # 评估时的步数 (the number of steps to run in each evaluation environment during evaluation)
+  anneal_lr: false                # 是否线性衰减学习率 (Toggle learning rate annealing for policy and value networks)
+  gamma: 0.95                     # 折扣因子 (the discount factor gamma)
+  gae_lambda: 0.95                 # GAE Lambda (the lambda for the general advantage estimation)
+  num_minibatches: 8            # Mini-batch 数量 (the number of mini-batches)
+  update_epochs: 4                # PPO 更新轮数 (the K epochs to update the policy)
+  norm_adv: true                  # 是否标准化优势函数 (Toggles advantages normalization)
+  clip_coef: 0.2                  # PPO 裁剪系数 (the surrogate clipping coefficient)
+  clip_vloss: true               # 是否裁剪 Value Loss (Toggles whether or not to use a clipped loss for the value function)
+  ent_coef: 0.01                  # 熵系数 (coefficient of the entropy)
+  vf_coef: 0.5                    # Value Function 系数 (coefficient of the value function)
+  max_grad_norm: 0.5              # 梯度裁剪最大范数 (the maximum norm for the gradient clipping)
+  target_kl: 0.05                 # 目标 KL 散度阈值 (the target KL divergence threshold)
+  reward_scale: 1.0               # 奖励缩放比例 (Scale the reward by this factor)
+  eval_freq: 5                   # 评估频率(iterations) (evaluation frequency in terms of iterations)
+  finite_horizon_gae: false       # 是否使用有限视界 GAE
+  num_eval: 5
+  # ==============================================================================
+  # 运行时计算参数 (Runtime Computed - Usually 0 in config)
+  # ==============================================================================
+  batch_size: 0                   # 批次大小 (computed in runtime)
+  minibatch_size: 0               # Mini-batch 大小 (computed in runtime)
+  num_iterations: 0               # 迭代次数 (computed in runtime)

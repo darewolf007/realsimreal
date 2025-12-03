@@ -4,20 +4,20 @@ from robosuite.utils.mjmod import CameraModder, DynamicsModder, LightingModder, 
 from robosuite.wrappers import Wrapper
 
 DEFAULT_COLOR_ARGS = {
-    "geom_names": None,  # all geoms are randomized
-    "randomize_local": True,  # sample nearby colors
-    "randomize_material": True,  # randomize material reflectance / shininess / specular
-    "local_rgb_interpolation": 0.2,
+    "geom_names": ['floor', 'ur_table'],  # all geoms are randomized
+    "randomize_local": False,  # sample nearby colors
+    "randomize_material": False,  # randomize material reflectance / shininess / specular
+    "local_rgb_interpolation": 1,
     "local_material_interpolation": 0.3,
-    "texture_variations": ["rgb", "checker", "noise", "gradient"],  # all texture variation types
+    "texture_variations": ["rgb"],  # all texture variation types ["rgb", "checker", "noise", "gradient"]
     "randomize_skybox": True,  # by default, randomize skybox too
 }
 
 DEFAULT_CAMERA_ARGS = {
-    "camera_names": None,  # all cameras are randomized
+    "camera_names": ["sceneview"],  # all cameras are randomized
     "randomize_position": True,
     "randomize_rotation": True,
-    "randomize_fovy": True,
+    "randomize_fovy": False,
     "position_perturbation_size": 0.01,
     "rotation_perturbation_size": 0.087,
     "fovy_perturbation_size": 5.0,
@@ -119,13 +119,13 @@ class DomainRandomizationWrapper(Wrapper):
         randomize_color=True,
         randomize_camera=True,
         randomize_lighting=True,
-        randomize_dynamics=True,
+        randomize_dynamics=False,
         color_randomization_args=DEFAULT_COLOR_ARGS,
         camera_randomization_args=DEFAULT_CAMERA_ARGS,
         lighting_randomization_args=DEFAULT_LIGHTING_ARGS,
         dynamics_randomization_args=DEFAULT_DYNAMICS_ARGS,
         randomize_on_reset=True,
-        randomize_every_n_steps=1,
+        randomize_every_n_steps=0,
     ):
         super().__init__(env)
 

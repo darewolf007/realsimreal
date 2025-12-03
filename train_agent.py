@@ -1,5 +1,6 @@
 import hydra
 import os
+import torch
 import numpy as np
 from omegaconf import OmegaConf
 from utils.data_convert_pt import convert_pt_data
@@ -15,6 +16,7 @@ from simple_sim.environment.stack_environment import StackCanSimulation
 from simple_sim.environment.press_environment import PressButtonSimulation
 from reward_model.reward import RewardModel
 from reward_model.lane_reward_model import DINOE2CSacAgent as LaNERewardModel
+# os.environ["WANDB_MODE"] = "offline"
 
 ENV_DICT = {
     "PickBanana": LiftBananaSimulation,
@@ -40,6 +42,8 @@ def make_reward_fn(cfg, action_shape = None):
         reward_model = LaNERewardModel(replay_buffer_load_dir, reward_obs_shape, action_shape, device, reward_model_dir, dino_model_dir)
         return reward_model
     elif cfg.agent_name == "pi0" or cfg.agent_name == "vla-adapter":
+        return None
+    elif cfg.agent_name == "ppo":
         return None
     else:
         raise NotImplementedError
@@ -82,6 +86,19 @@ def make_actionprocess_fn(cfg):
             # quat_action = rot.as_quat()[[3,0,1,2]]
             # quat_pocess_action = np.concatenate([pocess_action[:3], quat_action, pocess_action[-1:]], axis=0)
             return pocess_action
+        return action_postprocess_fn
+    elif cfg.agent_name == "ppo":
+        def action_postprocess_fn(action, action_mean=None, action_std=None):
+            if isinstance(action, torch.Tensor):
+                raw_action = action.detach().cpu().numpy()[0].copy()
+            else:
+                raw_action = action.copy()
+            pos_limit = 0.004
+            process_action = raw_action.copy()
+            process_action[:3] = np.tanh(raw_action[:3]) * pos_limit
+            process_action[3:-1] = 0.0
+            process_action[-1] = 1.0 if raw_action[-1] > 0 else -1.0
+            return process_action
         return action_postprocess_fn
     else:
         raise NotImplementedError
@@ -172,6 +189,13 @@ def make_imageprocess_fn(cfg):
             vla_info['task_prompt'] = cfg['task_name']
             return vla_info
         return img_postprocess_fn
+    elif cfg.agent_name == "ppo":
+        def img_postprocess_fn(observations):
+            obs = observations[cfg.agent.train_camera_name+"_image"]
+            obs = resize_image(obs, 1/12)[None, ...]
+            obs_dict = {"rgb": torch.from_numpy(obs).to(cfg.device)}
+            return obs_dict
+        return img_postprocess_fn
     else:
         raise NotImplementedError
     
@@ -201,6 +225,12 @@ def make_policy_agent(cfg, agent_name, device, action_shape, is_train):
         pass
     elif agent_name == "vla-adapter":
         agent = VlaAdapterClient()
+        return agent
+    elif agent_name == "ppo":
+        agent_info = cfg.agent
+        agent_info['save_path'] = os.path.join(base_path, cfg['save_dir'])
+        obs_shape = (cfg.agent.image_size, cfg.agent.image_size, 3)
+        agent = BaseAgentPolicy(cfg, agent_name, device, obs_shape, action_shape, is_train)
         return agent
     else:
         raise NotImplementedError
@@ -256,24 +286,37 @@ def eval_agent_in_env(cfg):
 # @hydra.main(config_path='configs/pick_maniwhere.yaml', strict=True)
 # @hydra.main(config_path='configs/pick_vla.yaml', strict=True)
 # @hydra.main(config_path='configs/pour_vla.yaml', strict=True)
-@hydra.main(config_path='configs/lift_maniwhere.yaml', strict=True)
+# @hydra.main(config_path='configs/lift_maniwhere.yaml', strict=True)
+@hydra.main(config_path='configs/lift_ppo.yaml', strict=True)
 def main_policy(cfg):
     # convert_pt_data(cfg.task_name.replace(" ", "_"), cfg.dataset_name, os.path.dirname(os.path.abspath(__file__)))
-    if cfg.mode == "eval":
-        eval_agent_in_env(cfg)
-    elif cfg.mode == "replay":
-        cfg.env_info['has_renderer'] = True
-        cfg.env_info["reward_type"] = "dense"
-        env = make_env(cfg.env_name, OmegaConf.to_container(cfg.env_info, resolve=True))
-        env.replay(replay_id = 1, img_post_process_fn=make_imageprocess_fn(cfg), reward_fn=make_reward_fn(cfg, env.action_space.shape), action_pre_process_fn=make_actionprocess_fn(cfg))
-    elif cfg.mode == "train":
-        env = make_env(cfg.env_name, OmegaConf.to_container(cfg.env_info, resolve=True))
-        test_env = make_env(cfg.env_name, OmegaConf.to_container(cfg.env_info, resolve=True))
-        action_shape = env.action_space.shape
-        agent = make_policy_agent(cfg, cfg.agent_name, cfg.device, action_shape, is_train=True)
-        agent.train_agent(env, test_env, img_post_process_fn=make_imageprocess_fn(cfg), reward_fn=make_reward_fn(cfg, action_shape), action_pre_process_fn=make_actionprocess_fn(cfg))
+    env = make_env(cfg.env_name, OmegaConf.to_container(cfg.env_info, resolve=True))
+    test_env = False
+    if test_env:
+        import cv2
+        for _ in range(10):
+            obs = env.reset()
+            img_post_process_fn = make_imageprocess_fn(cfg)
+            new_obs = img_post_process_fn(obs)
+            cv2.imshow("replay_obs", new_obs['rgb'][0].cpu().numpy()[:, :, ::-1])
+            cv2.waitKey(10)
+        cv2.destroyAllWindows()
     else:
-        raise NotImplementedError
+        if cfg.mode == "eval":
+            eval_agent_in_env(cfg)
+        elif cfg.mode == "replay":
+            cfg.env_info['has_renderer'] = True
+            cfg.env_info["reward_type"] = "dense"
+            env = make_env(cfg.env_name, OmegaConf.to_container(cfg.env_info, resolve=True))
+            env.replay(replay_id = 1, img_post_process_fn=make_imageprocess_fn(cfg), reward_fn=make_reward_fn(cfg, env.action_space.shape), action_pre_process_fn=make_actionprocess_fn(cfg))
+        elif cfg.mode == "train":
+            env = make_env(cfg.env_name, OmegaConf.to_container(cfg.env_info, resolve=True))
+            test_env = make_env(cfg.env_name, OmegaConf.to_container(cfg.env_info, resolve=True))
+            action_shape = env.action_space.shape
+            agent = make_policy_agent(cfg, cfg.agent_name, cfg.device, action_shape, is_train=True)
+            agent.train_agent(env, test_env, img_post_process_fn=make_imageprocess_fn(cfg), reward_fn=make_reward_fn(cfg, action_shape), action_pre_process_fn=make_actionprocess_fn(cfg))
+        else:
+            raise NotImplementedError
 
 if __name__ == "__main__":
     main_policy()

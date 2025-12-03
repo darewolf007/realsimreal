@@ -186,7 +186,7 @@ class SimpleEnv(ManipulationEnv):
             robot_quat = self.env_info['robot_base_pose'][3:]
             self.robots[0].robot_model.set_base_xpos(robot_xpos.tolist())
             self.robots[0].robot_model._elements["root_body"].set("quat", array_to_string(robot_quat))
-            self.robots[0].init_qpos = self.init_qpos + self.schedule_scale * (np.random.uniform(low=-0.01, high=0.01, size=self.init_qpos.shape))
+            self.robots[0].init_qpos = self.init_qpos + self.schedule_scale * (np.random.uniform(low=-0.05, high=0.05, size=self.init_qpos.shape))
             # self.init_qpos = self.robots[0].init_qpos
             base_path = os.path.dirname(os.path.realpath(__file__))
             obj_xml = os.path.join(base_path, "../asset/external_area.xml")

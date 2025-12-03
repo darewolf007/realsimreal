@@ -50,7 +50,7 @@ class LiftBananaSimulation(SingleViewSimulation):
         reaching_reward = 1 - np.tanh(10 * tcp_to_obj_dist)
         reward = reaching_reward
         is_grasped = self.is_grasping(self.moving_object)
-        reward += self.is_pick_done_from_sim(is_grasped) * self.sub_task_reward_scale
+        reward += is_grasped * self.sub_task_reward_scale
         if is_grasped:
             obj_to_goal_dist = np.linalg.norm(self.target_pose - moving_object_pose)
             lift_reward = 1 - np.tanh(10 * obj_to_goal_dist)

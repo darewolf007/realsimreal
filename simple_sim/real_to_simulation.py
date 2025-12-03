@@ -36,7 +36,7 @@ class RealInSimulation:
         self.init_scene_camera_pose()
         self.init_motion_planning()
         self.env = SimpleEnv(robot, env_info, has_renderer = has_renderer, *args, **kwargs)
-        if False:
+        if env_info.get('use_domain_randomization', False):
             self.env = DomainRandomizationWrapper(self.env)
         self.init_invese_kinematics()
         self.init_action_space()
@@ -480,7 +480,10 @@ class RealInSimulation:
         if not self.env_info['use_gravity']:
             self.env.sim.model.opt.gravity[:] = [0.0, 0.0, 0.0]
         self.init_subtask_info()
-        init_pose = np.array(self.env.init_qpos)
+        if self.env_info["schedule_random"]:
+            init_pose = self.env.robots[0]._joint_positions.copy()
+        else:
+            init_pose = np.array(self.env.init_qpos)
         action = np.concatenate([init_pose, np.array([-1])])
         self._step(action, True)
         self._step(action, True)
