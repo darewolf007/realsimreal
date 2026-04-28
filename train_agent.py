@@ -93,7 +93,7 @@ def make_actionprocess_fn(cfg):
                 raw_action = action.detach().cpu().numpy()[0].copy()
             else:
                 raw_action = action.copy()
-            pos_limit = 0.004
+            pos_limit = 0.005
             process_action = raw_action.copy()
             process_action[:3] = np.tanh(raw_action[:3]) * pos_limit
             process_action[3:-1] = 0.0
@@ -104,7 +104,8 @@ def make_actionprocess_fn(cfg):
         raise NotImplementedError
 
 def make_imageprocess_fn(cfg):
-    view_name = cfg.train_camera_name + "_image"
+    if isinstance(cfg.train_camera_name, str):
+        view_name = cfg.train_camera_name + "_image"
     if cfg.agent_name == "LaNE":
         def img_postprocess_fn(observations):
             obs = observations[view_name]
@@ -191,9 +192,13 @@ def make_imageprocess_fn(cfg):
         return img_postprocess_fn
     elif cfg.agent_name == "ppo":
         def img_postprocess_fn(observations):
-            obs = observations[cfg.agent.train_camera_name+"_image"]
-            obs = resize_image(obs, 1/12)[None, ...]
-            obs_dict = {"rgb": torch.from_numpy(obs).to(cfg.device)}
+            obs_dict = {}
+            for train_camera_name in cfg.agent.train_camera_name:
+                obs = observations[train_camera_name+"_image"]
+                obs = resize_image(obs, 1/12)[None, ...]
+                obs_dict[train_camera_name] = torch.from_numpy(obs).to(cfg.device)
+            # obs_dict = {"rgb": torch.from_numpy(obs).to(cfg.device),
+            #             }
             return obs_dict
         return img_postprocess_fn
     else:

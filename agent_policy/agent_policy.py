@@ -9,6 +9,7 @@ from agent_policy.mine.train import mine_train_main
 from agent_policy.maniwhere.camera_train import maniwhere_train_main
 from agent_policy.maniwhere.camera_train import make_agent, load_agent
 from agent_policy.PPO.ppo_agent import PPOAgent, ppo_train_main
+# from agent_policy.PPO.multi_agent_policy import PPOAgent, ppo_train_main
 
 class eval_mode(object):
     def __init__(self, *models):
@@ -146,7 +147,8 @@ class BaseAgentPolicy:
         return agent
 
     def init_ppo_agent(self, args):
-        return PPOAgent(self.action_shape, self.obs_shape)
+        # return PPOAgent(self.action_shape, self.obs_shape, train_camera_name=self.args.train_camera_name)
+        return None
 
     def get_action(self, obs, step = 0):
         if self.agent_name == "LaNE":

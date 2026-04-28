@@ -18,7 +18,7 @@ env_info:
   init_rotation_noise_bounds: [-50, 50]
   subtask_max_step: ${subtask_max_step}
   schedule_random: ${schedule_random} # schedule random object pose
-  use_domain_randomization: true # use domain randomization
+  use_domain_randomization: false # use domain randomization
 # camera setting
   camera_names: ["sceneview", "birdview", "frontview", "rightview", "robot0_eye_in_hand", "moveview"]
   camera_heights: [1536, 1536, 1536, 1536, 1536, 1536]

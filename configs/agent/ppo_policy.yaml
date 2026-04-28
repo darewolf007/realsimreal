@@ -1,6 +1,6 @@
 agent:
   image_size: 128
-  train_camera_name: "sceneview"
+  train_camera_name: ["sceneview", "robot0_eye_in_hand"]
   save_path: null
   # ==============================================================================
   # 实验基础设置 (Experiment Settings)

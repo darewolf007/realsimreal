@@ -15,6 +15,7 @@ from torch.utils.tensorboard import SummaryWriter
 import wandb
 import imageio
 from pathlib import Path
+
 class VideoRecorder:
     def __init__(self, root_dir, render_size=256, fps=20):
         if root_dir is not None:
@@ -123,6 +124,12 @@ class Args:
     """the target KL divergence threshold"""
     reward_scale: float = 1.0
     """Scale the reward by this factor"""
+    
+    ### [新增] BC Loss 系数 ###
+    bc_coef: float = 0.0
+    """coefficient of the behavior cloning loss (e.g., 0.1 or 1.0)"""
+    ### [新增结束] ###
+
     eval_freq: int = 25
     """evaluation frequency in terms of iterations"""
     save_train_video_freq: Optional[int] = None
@@ -200,9 +207,8 @@ class NatureCNN(nn.Module):
         self.out_features = 0
         feature_size = 256
 
-        # 遍历所有键，根据名字自动识别 image 输入
         for key, obs in sample_obs.items():
-            if obs.ndim == 4 and obs.shape[-1] in (1, 3):   # 自动匹配 HWC 图像
+            if obs.ndim == 4 and obs.shape[-1] in (1, 3):
                 in_channels = obs.shape[-1]
 
                 cnn = nn.Sequential(
@@ -222,7 +228,6 @@ class NatureCNN(nn.Module):
                 self.extractors[key] = nn.Sequential(cnn, fc)
                 self.out_features += feature_size
 
-            # 如果有 state 信息
             elif obs.ndim == 2:
                 state_dim = obs.shape[-1]
                 self.extractors[key] = nn.Linear(state_dim, feature_size)
@@ -289,16 +294,14 @@ class Logger:
     def close(self):
         self.writer.close()
 
-
-def ppo_train_main(agent, cfg, env, test_env, post_process_fn=None, reward_fn=None, action_pre_process_fn=None):
-    # 1. 计算 batch size 和 iterations (基于传入的 args)
+def ppo_train_main(agent, cfg, env, test_env, post_process_fn=None, reward_fn=None, action_pre_process_fn=None, expert_buffer=None):
     args = cfg.agent
     args.batch_size = int(args.num_envs * args.num_steps)
     args.minibatch_size = int(args.batch_size // args.num_minibatches)
     args.num_iterations = args.total_timesteps // args.batch_size
 
     run_name = f"{cfg.task_name}__{args.seed}__{int(time.time())}"
-
+    
     random.seed(args.seed)
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
@@ -347,8 +350,6 @@ def ppo_train_main(agent, cfg, env, test_env, post_process_fn=None, reward_fn=No
     dones = torch.zeros((args.num_steps, args.num_envs)).to(device)
     values = torch.zeros((args.num_steps, args.num_envs)).to(device)
 
-    # 6. 初始化 Agent 和 Optimizer
-    # TRY NOT TO MODIFY: start the game
     global_step = 0
     start_time = time.time()
     next_obs = env.reset()
@@ -378,13 +379,11 @@ def ppo_train_main(agent, cfg, env, test_env, post_process_fn=None, reward_fn=No
     cumulative_times = defaultdict(float)
     running_episode_rewards = torch.zeros(args.num_envs, device=device)
     running_episode_lengths = torch.zeros(args.num_envs, device=device)
-    # 7. 主训练循环
     for iteration in range(1, args.num_iterations + 1):
         print(f"Epoch: {iteration}, global_step={global_step}")
         final_values = torch.zeros((args.num_steps, args.num_envs), device=device)
         agent.eval()
 
-        # --- Evaluation Block ---
         if iteration % args.eval_freq == 1:
             print("Evaluating")
             stime = time.perf_counter()
@@ -429,33 +428,28 @@ def ppo_train_main(agent, cfg, env, test_env, post_process_fn=None, reward_fn=No
             if args.evaluate:
                 break
 
-        # --- Save Model Block ---
         if args.save_model and iteration % args.eval_freq == 1:
             model_path = f"{args.save_path}/{run_name}/ckpt_{iteration}.pt"
             torch.save(agent.state_dict(), model_path)
             print(f"model saved to {model_path}")
 
-        # --- Learning Rate Annealing ---
         if args.anneal_lr:
             frac = 1.0 - (iteration - 1.0) / args.num_iterations
             lrnow = frac * args.learning_rate
             optimizer.param_groups[0]["lr"] = lrnow
 
-        # --- Rollout Phase ---
         rollout_time = time.perf_counter()
         for step in range(0, args.num_steps):
             global_step += args.num_envs
             obs[step] = next_obs
             dones[step] = next_done
 
-            # ALGO LOGIC: action logic
             with torch.no_grad():
                 action, logprob, _, value = agent.get_action_and_value(next_obs)
                 values[step] = value.flatten()
             actions[step] = action
             logprobs[step] = logprob
 
-            # TRY NOT TO MODIFY: execute the game and log data.
             # print("process action", action_pre_process_fn(action))
             next_obs, reward, done, infos = env.step(action_pre_process_fn(action))
             # print("end effector", env.env.sim.data.get_site_xpos('gripper0_right_grip_site'))
@@ -492,7 +486,6 @@ def ppo_train_main(agent, cfg, env, test_env, post_process_fn=None, reward_fn=No
         rollout_time = time.perf_counter() - rollout_time
         cumulative_times["rollout_time"] += rollout_time
 
-        # --- GAE Calculation ---
         with torch.no_grad():
             next_value = agent.get_value(next_obs).reshape(1, -1)
             advantages = torch.zeros_like(rewards).to(device)
@@ -524,7 +517,6 @@ def ppo_train_main(agent, cfg, env, test_env, post_process_fn=None, reward_fn=No
                     advantages[t] = lastgaelam = delta + args.gamma * args.gae_lambda * next_not_done * lastgaelam
             returns = advantages + values
 
-        # flatten the batch
         b_obs = obs.reshape((-1,)) 
         b_logprobs = logprobs.reshape(-1)
         b_actions = actions.reshape((-1,) + env.action_space.shape)
@@ -532,10 +524,12 @@ def ppo_train_main(agent, cfg, env, test_env, post_process_fn=None, reward_fn=No
         b_returns = returns.reshape(-1)
         b_values = values.reshape(-1)
 
-        # --- Update Phase (PPO Optimization) ---
         agent.train()
         b_inds = np.arange(args.batch_size)
         clipfracs = []
+        
+        bc_loss_epoch = 0.0
+        
         update_time = time.perf_counter()
         for epoch in range(args.update_epochs):
             np.random.shuffle(b_inds)
@@ -548,7 +542,6 @@ def ppo_train_main(agent, cfg, env, test_env, post_process_fn=None, reward_fn=No
                 ratio = logratio.exp()
 
                 with torch.no_grad():
-                    # calculate approx_kl http://joschu.net/blog/kl-approx.html
                     old_approx_kl = (-logratio).mean()
                     approx_kl = ((ratio - 1) - logratio).mean()
                     clipfracs += [((ratio - 1.0).abs() > args.clip_coef).float().mean().item()]
@@ -560,12 +553,10 @@ def ppo_train_main(agent, cfg, env, test_env, post_process_fn=None, reward_fn=No
                 if args.norm_adv:
                     mb_advantages = (mb_advantages - mb_advantages.mean()) / (mb_advantages.std() + 1e-8)
 
-                # Policy loss
                 pg_loss1 = -mb_advantages * ratio
                 pg_loss2 = -mb_advantages * torch.clamp(ratio, 1 - args.clip_coef, 1 + args.clip_coef)
                 pg_loss = torch.max(pg_loss1, pg_loss2).mean()
 
-                # Value loss
                 newvalue = newvalue.view(-1)
                 if args.clip_vloss:
                     v_loss_unclipped = (newvalue - b_returns[mb_inds]) ** 2
@@ -583,6 +574,20 @@ def ppo_train_main(agent, cfg, env, test_env, post_process_fn=None, reward_fn=No
                 entropy_loss = entropy.mean()
                 loss = pg_loss - args.ent_coef * entropy_loss + v_loss * args.vf_coef
 
+                if expert_buffer is not None and args.bc_coef > 0:
+                    exp_len = expert_buffer['actions'].shape[0]
+                    exp_indices = torch.randint(0, exp_len, (args.minibatch_size,), device=device)
+                    
+                    exp_obs = {k: v[exp_indices].to(device) for k, v in expert_buffer['obs'].items()}
+                    exp_act = expert_buffer['actions'][exp_indices].to(device)
+                    
+                    _, exp_log_prob, _, _ = agent.get_action_and_value(exp_obs, action=exp_act)
+                    
+                    bc_loss = -exp_log_prob.mean()
+                    
+                    loss += args.bc_coef * bc_loss
+                    bc_loss_epoch += bc_loss.item()
+
                 optimizer.zero_grad()
                 loss.backward()
                 nn.utils.clip_grad_norm_(agent.parameters(), args.max_grad_norm)
@@ -596,7 +601,6 @@ def ppo_train_main(agent, cfg, env, test_env, post_process_fn=None, reward_fn=No
         var_y = np.var(y_true)
         explained_var = np.nan if var_y == 0 else 1 - np.var(y_true - y_pred) / var_y
 
-        # --- Logging ---
         logger.add_scalar("losses/mean_return_batch", b_returns.mean().item(), global_step)
         logger.add_scalar("losses/mean_value_pred", b_values.mean().item(), global_step)
         logger.add_scalar("losses/reward", explained_var, global_step)
@@ -604,6 +608,11 @@ def ppo_train_main(agent, cfg, env, test_env, post_process_fn=None, reward_fn=No
         logger.add_scalar("losses/value_loss", v_loss.item(), global_step)
         logger.add_scalar("losses/policy_loss", pg_loss.item(), global_step)
         logger.add_scalar("losses/entropy", entropy_loss.item(), global_step)
+        
+        if args.bc_coef > 0:
+            avg_bc_loss = bc_loss_epoch / (args.update_epochs * (args.batch_size // args.minibatch_size))
+            logger.add_scalar("losses/bc_loss", avg_bc_loss, global_step)
+
         logger.add_scalar("losses/old_approx_kl", old_approx_kl.item(), global_step)
         logger.add_scalar("losses/approx_kl", approx_kl.item(), global_step)
         logger.add_scalar("losses/clipfrac", np.mean(clipfracs), global_step)
@@ -619,7 +628,6 @@ def ppo_train_main(agent, cfg, env, test_env, post_process_fn=None, reward_fn=No
         logger.add_scalar("time/total_rollout+update_time",
                           cumulative_times["rollout_time"] + cumulative_times["update_time"], global_step)
 
-    # 8. 保存最终模型并关闭
     if args.save_model and not args.evaluate:
         model_path = f"{args.save_path}/{run_name}/final_ckpt.pt"
         torch.save(agent.state_dict(), model_path)
@@ -627,4 +635,3 @@ def ppo_train_main(agent, cfg, env, test_env, post_process_fn=None, reward_fn=No
 
     env.close()
     if logger is not None: logger.close()
-

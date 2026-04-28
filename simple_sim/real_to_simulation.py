@@ -32,6 +32,7 @@ class RealInSimulation:
         self.sub_task_max_num = env_info['subtask_max_step']
         self.all_task_step_num = 0 
         self.all_task_max_num = env_info['subtask_max_step'] * len(env_info['subtask_language_info'])
+        self.replay_step = 0
         self.init_scene_xmlobj_pose()
         self.init_scene_camera_pose()
         self.init_motion_planning()
@@ -121,7 +122,7 @@ class RealInSimulation:
         else:
             raise NotImplementedError
         
-    def pre_process_action(self, action, use_delta = True, use_joint_controller=False, use_euler = False):
+    def pre_process_action(self, action, use_delta = True, use_joint_controller=False, use_euler = False, is_expert=False):
         if use_joint_controller:
             if use_delta:
                 raise NotImplementedError
@@ -138,20 +139,21 @@ class RealInSimulation:
                     current_end_xpos[2] += 0.007
                     self.last_action = np.concatenate([current_end_xpos, current_end_xquat, np.array([-1])])
                 if use_euler:
-                    # current_end_xpos = self.env.sim.data.get_site_xpos('robot0_attachment_site').copy()
-                    # print("error", current_end_xpos - self.last_action[:3])
-                    # current_end_xquat = self.env.sim.data.get_site_xmat('robot0_attachment_site').copy()
-                    # current_end_xquat = R.from_matrix(current_end_xquat).as_quat()
-                    # current_end_xquat = current_end_xquat[[3, 0, 1, 2]]
-                    # delta_end_euler = action[3:-1]
-                    # current_end_euler = quaternion_to_euler(current_end_xquat, quat_format="wxyz", euler_format="xyz")
-                    # end_euler = current_end_euler + delta_end_euler
-                    # end_quat = euler_to_quaternion(end_euler, quat_format="wxyz", euler_format="xyz")
-                    # delta_end_xpos = action[:3]
-                    # end_xpos = current_end_xpos + delta_end_xpos
-                    # action = np.concatenate([end_xpos, self.last_action[3:-1], np.array([action[-1]])])
-                    # self.last_action = action
-                    # return action
+                    if not is_expert:
+                        current_end_xpos = self.env.sim.data.get_site_xpos('robot0_attachment_site').copy()
+                        current_end_xquat = self.env.sim.data.get_site_xmat('robot0_attachment_site').copy()
+                        current_end_xquat = R.from_matrix(current_end_xquat).as_quat()
+                        current_end_xquat = current_end_xquat[[3, 0, 1, 2]]
+                        delta_end_euler = action[3:-1]
+                        current_end_euler = quaternion_to_euler(current_end_xquat, quat_format="wxyz", euler_format="xyz")
+                        end_euler = current_end_euler + delta_end_euler
+                        end_quat = euler_to_quaternion(end_euler, quat_format="wxyz", euler_format="xyz")
+                        delta_end_xpos = action[:3]
+                        end_xpos = current_end_xpos + delta_end_xpos
+                        end_quat = np.array([0, 0, 1, 0])  # reset orientation during training
+                        action = np.concatenate([end_xpos, end_quat, np.array([action[-1]])])
+                        self.last_action = action
+                        return action
 
                     delta_end_euler = action[3:-1]
                     last_end_xquat = self.last_action[3:-1]
@@ -245,8 +247,8 @@ class RealInSimulation:
             info['robot_limits'] = self.mink_ik.configuration.new_check_limits()
         return observations, reward, done, info
 
-    def multi_step(self, action, use_delta=True, use_joint_controller=False, step_num=3, is_collect = False, use_euler = False):
-        step_action = self.pre_process_action(action, use_delta=use_delta, use_joint_controller=use_joint_controller, use_euler=use_euler)
+    def multi_step(self, action, use_delta=True, use_joint_controller=False, step_num=3, is_collect = False, use_euler = False, is_expert=False):
+        step_action = self.pre_process_action(action, use_delta=use_delta, use_joint_controller=use_joint_controller, use_euler=use_euler, is_expert=False)
         for i in range(step_num):
             observations, reward, done, info = self._step(step_action, use_joint_controller)
         self.all_task_step_num += 1
@@ -268,6 +270,8 @@ class RealInSimulation:
             quat_error = end_quat - step_action[3:7]
             print("xpos", error)
             print("qpos", quat_error)
+        cv2.imwrite("/home/haowen/hw_mine/Real_Sim_Real/replay/" + str(self.replay_step) + ".png", observations['sceneview_image'][..., ::-1])
+        self.replay_step += 1
         return observations, reward, done, info
 
     def close(self):
@@ -330,7 +334,7 @@ class RealInSimulation:
                 current_end_xquat = self.env.sim.data.get_site_xmat('robot0_attachment_site').copy()
                 current_end_xquat = R.from_matrix(current_end_xquat).as_quat()
                 current_end_xquat = current_end_xquat[[3, 0, 1, 2]]
-                observations, reward, done, info = self.multi_step(action, use_delta=False, use_joint_controller=use_joint_controller, step_num=2, is_collect=False)
+                observations, reward, done, info = self.multi_step(action, use_delta=False, use_joint_controller=use_joint_controller, step_num=2, is_collect=False, is_expert=True)
                 end_xpos = self.env.sim.data.get_site_xpos('robot0_attachment_site').copy()
                 end_quat = self.env.sim.data.get_site_xmat('robot0_attachment_site').copy()
                 print("end_error", end_xpos - collect_data[:3])
@@ -392,7 +396,7 @@ class RealInSimulation:
                     step_data["rewards"] = 100
                 else:
                     step_data["rewards"] = 0
-                next_observations, reward, done, info = self.multi_step(action, use_delta=self.env_info['use_delta'], use_joint_controller=False, step_num=3, is_collect = is_collect, use_euler= self.env_info['use_euler'])
+                next_observations, reward, done, info = self.multi_step(action, use_delta=self.env_info['use_delta'], use_joint_controller=False, step_num=3, is_collect = is_collect, use_euler= self.env_info['use_euler'], is_expert=True)
                 if dense_reward:
                     reaching_reward = (- info["gripper_banana"]) * 10
                     print("reaching_reward", reaching_reward)   
@@ -744,29 +748,29 @@ if __name__ == "__main__":
     # env_info['subtask_object_info'] = [subtask_1_obj, subtask_2_obj]
 
     #### insert marker
-    # task_name = "insert marker"
-    # subtask_1 = "Pick up marker"
-    # subtask_1_obj = ["gripper", "marker"]
-    # subtask_2 = "insert marker to the pen_holder"
-    # subtask_2_obj = ["marker", "pen_holder"]
-    # base_path = os.path.dirname(os.path.realpath(__file__))
-    # handeye_T_path = os.path.join(base_path, "../configs/robot/ur5_kinect_handeyecalibration_eye_on_base.yaml")
-    # handeye_T = get_handeye_T(handeye_T_path)
-    # # robot_init_pose = np.array([ -1.30487138, -1.69159379, 1.7358554 , -1.55820926, -1.51700765,
-    # #    -0.55815155])
-    # robot_init_pose = np.array([ 2.0231802 , -1.6689392 , -1.0193242 , -1.8898689 , -1.5750278 ,
-    #     -0.25851947])
-    # marker_pose = np.array([-0.33288363209095, 0.2773848510654575,  0.08,  0.707, 0, 0,  0.707])
-    # pen_holder_pose = np.array([-0.42696884,  0.23760321,  0.00,  1, 0, 0,  0])
-    # scene_dict = {"labels": ["marker", "pen_holder"], "poses": [marker_pose, pen_holder_pose], "grasp_obj": [True, False]}
-    # replay_data_save_path = os.path.join(base_path, "../data/sim_data/" + task_name.replace(" ", "_") + "/")
-    # env_info = {}
-    # env_info['obj_pose_base'] = "robot"
-    # env_info['replay_data_save_path'] = replay_data_save_path
-    # env_info['task_name'] = task_name
-    # env_info['subtask_language_info'] = [subtask_1, subtask_2]
-    # env_info['subtask_object_info'] = [subtask_1_obj, subtask_2_obj]
-
+    task_name = "insert marker"
+    subtask_1 = "Pick up marker"
+    subtask_1_obj = ["gripper", "marker"]
+    subtask_2 = "insert marker to the pen_holder"
+    subtask_2_obj = ["marker", "pen_holder"]
+    base_path = os.path.dirname(os.path.realpath(__file__))
+    handeye_T_path = os.path.join(base_path, "../configs/robot/ur5_kinect_handeyecalibration_eye_on_base.yaml")
+    handeye_T = get_handeye_T(handeye_T_path)
+    # robot_init_pose = np.array([ -1.30487138, -1.69159379, 1.7358554 , -1.55820926, -1.51700765,
+    #    -0.55815155])
+    robot_init_pose = np.array([ 2.0231802 , -1.6689392 , -1.0193242 , -1.8898689 , -1.5750278 ,
+        -0.25851947])
+    marker_pose = np.array([-0.33288363209095, 0.2773848510654575,  0.08,  0.707, 0, 0,  0.707])
+    pen_holder_pose = np.array([-0.42696884,  0.23760321,  0.00,  1, 0, 0,  0])
+    scene_dict = {"labels": ["marker", "pen_holder"], "poses": [marker_pose, pen_holder_pose], "grasp_obj": [True, False]}
+    replay_data_save_path = os.path.join(base_path, "../data/sim_data/" + task_name.replace(" ", "_") + "/")
+    env_info = {}
+    env_info['obj_pose_base'] = "robot"
+    env_info['replay_data_save_path'] = replay_data_save_path
+    env_info['task_name'] = task_name
+    env_info['subtask_language_info'] = [subtask_1, subtask_2]
+    env_info['subtask_object_info'] = [subtask_1_obj, subtask_2_obj]
+    env_info['base_env_xml'] = "external_area.xml"
 
     if env_info['replay_data_save_path'] is not None and not os.path.exists(env_info['replay_data_save_path']):
         os.makedirs(env_info['replay_data_save_path'])
@@ -774,7 +778,7 @@ if __name__ == "__main__":
     env_info['hand_eye'] = handeye_T
     env_info['obj_info'] = scene_dict
     env_info['use_gravity'] = True
-    env_info['data_path'] = "/home/haowen/hw_mine/Real_Sim_Real/data/real_data/easy_task/pour_can/5/traj/"
+    env_info['data_path'] = "/home/haowen/hw_mine/Real_Sim_Real/data/real_data/easy_task/insert_pen/5/traj/"
     begin_step = 3
     # env_info['base_choose'] = "camera"
     env_info['base_choose'] = "robot"
@@ -804,6 +808,7 @@ if __name__ == "__main__":
     env_info['init_rotation_noise_bounds'] = (-50, 50)
     env_info['use_joint_controller'] = False
     env_info['max_action'] = 4
+    env_info['schedule_random'] = False
     test_real = RealInSimulation("UR5e",
                                  env_info,
                                  has_renderer=True,
